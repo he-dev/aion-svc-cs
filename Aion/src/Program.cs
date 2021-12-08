@@ -57,10 +57,5 @@ internal static class Program
                 .Build();
 
         await host.RunAsync();
-        
-        if (Environment.UserInteractive)
-        {
-            Console.ReadKey();
-        }
     }
 }

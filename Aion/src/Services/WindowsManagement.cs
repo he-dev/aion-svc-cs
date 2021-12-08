@@ -11,6 +11,11 @@ internal class WindowsManagement
     [SupportedOSPlatform("windows")]
     public static IEnumerable<string> GetCommandLines(string processName)
     {
+        if (!processName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            yield break;
+        }
+        
         var query = $"SELECT CommandLine FROM Win32_Process WHERE Name = '{processName}'";
         using var searcher = new ManagementObjectSearcher(query);
         using var results = searcher.Get();
