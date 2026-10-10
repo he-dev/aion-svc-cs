@@ -21,21 +21,21 @@ public class FindWorkflows
     {
         pattern = NormalizePattern(pattern);
 
-        var schedulerDirectory = schedulerOptions.Value.HomeDirectory.Path;
+        var schedulerHome = schedulerOptions.Value.Home;
 
-        logger.LogInformation("Searching for workflows in '{Path}' matching '{Pattern}'.", schedulerDirectory, pattern);
+        logger.LogInformation("Searching for workflows in '{SchedulerHome}' matching '{Pattern}'.", schedulerHome, pattern);
 
         var result =
             new Matcher(StringComparison.OrdinalIgnoreCase)
                 .AddInclude(pattern)
                 .AddExclude("**/.profile.json")
                 .AddExclude("loggers/**")
-                .Execute(new DirectoryInfoWrapper(new DirectoryInfo(schedulerDirectory)));
+                .Execute(new DirectoryInfoWrapper(new DirectoryInfo(schedulerHome)));
 
         var workflows =
             result.Files
                 .Select(x => x.Path)
-                .Select(path => new WorkflowPath(schedulerDirectory, path))
+                .Select(path => new WorkflowPath(schedulerHome, path))
                 .OrderBy(x => x.Group)
                 .ThenBy(x => x.Workflow)
                 .ToImmutableList();

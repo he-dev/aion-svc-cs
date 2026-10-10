@@ -11,11 +11,11 @@ public class SchedulerOptionsValidation : IValidateOptions<SchedulerOptions>
     {
         try
         {
-            CronExpression.ValidateExpression(options.Cron);
+            _ = CronExpression.Parse(options.Polling.Cron);
         }
         catch (Exception e)
         {
-            return ValidateOptionsResult.Fail($"Invalid scheduler cron expression '{options.Cron}': {e.Message}");
+            return ValidateOptionsResult.Fail($"Invalid scheduler cron expression '{options.Polling.Cron}': {e.Message}");
         }
 
         if (!Path.Exists(options.Home))

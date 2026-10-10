@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
 using System.Threading.Tasks;
-using Aion.Core.Interface.Endpoints.Filters;
 using Aion.Core.Objective;
 using Aion.Core.Objective.Workflows;
 using Aion.Util.Buzz;
@@ -75,7 +72,7 @@ public static class WorkflowsEndpoint
         return Results.Accepted($"/api/workflows", new { schedules });
     }
 
-    private static async Task<IResult> Synchronize(SynchronizeWorkflows synchronizeWorkflows, string profileName)
+    private static async Task<IResult> Synchronize(SynchronizeWorkflows synchronizeWorkflows)
     {
         var syncResults = await synchronizeWorkflows.Invoke();
         return Results.Ok(syncResults);

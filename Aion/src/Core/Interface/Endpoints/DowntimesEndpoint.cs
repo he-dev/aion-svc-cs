@@ -3,7 +3,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Aion.Core.Interface.Endpoints.Filters;
 using Aion.Core.Objective.Downtimes;
-using Aion.Util.Buzz;
 using Aion.Util.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

@@ -3,8 +3,6 @@ using System.Linq;
 
 namespace Aion.Util.Data;
 
-
-
 public class WorkflowProfile
 {
     public Dictionary<string, string>? Variables { get; init; }
@@ -21,4 +19,3 @@ public class WorkflowProfile
 
     public static WorkflowProfile Empty { get; } = new();
 }
-

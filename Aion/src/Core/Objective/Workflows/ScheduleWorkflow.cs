@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Aion.Core.Interface.Jobs;
 using Aion.Meta.Logging;
-using Aion.Util.Buzz;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
 using Quartz;
@@ -58,7 +56,7 @@ public class ScheduleWorkflow
 
         if (workflow.Trigger is ICronTrigger trigger)
         {
-            if (await scheduler.CheckExists(trigger.JobKey))
+            if (await scheduler.Exists(trigger.JobKey))
             {
                 // core: Compare cron expressions only if the workflow is already scheduled.
                 if (await scheduler.GetTrigger(trigger.Key) is ICronTrigger { CronExpressionString: { } currentCron })
@@ -98,7 +96,7 @@ public class ScheduleWorkflow
             }
             else
             {
-                logger.LogInformation("Workflow '{WorkflowPath}' will be executed once at '{Next}'.", workflow.Path, workflow.Trigger.GetNextFireTimeUtc());
+                logger.LogInformation("Workflow '{WorkflowPath}' will be executed once at '{Next}'.", workflow.Path, workflow.Trigger.NextFireTimeUtc);
 
                 var nextNew = await scheduler.ScheduleJob(jobDetail, workflow.Trigger);
                 return new ScheduleResult(workflow.Path, SynchronizationReason.ScheduleBecauseNew, nextNew);

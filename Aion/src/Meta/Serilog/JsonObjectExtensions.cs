@@ -5,7 +5,6 @@ using System.Text.Json.Nodes;
 using Aion.Meta.Json;
 using Microsoft.Extensions.Configuration;
 using Serilog;
-using Serilog.Core;
 
 namespace Aion.Meta.Serilog;
 

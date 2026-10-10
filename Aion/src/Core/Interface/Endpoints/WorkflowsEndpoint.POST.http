@@ -23,5 +23,5 @@ POST {{host}}{{profiles.hallo}}/workflows/hallo-cmd:start-now
 POST {{host}}{{profiles.hallo}}/workflows/hallo-pwsh:start-now
 
 ### Synchronizes the profile.
-POST {{host}}{{profiles.hallo}}/workflows:sync
+POST {{host}}/workflows:sync
 

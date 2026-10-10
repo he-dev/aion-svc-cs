@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
-using Microsoft.Extensions.Logging;
 using Serilog.Core;
 using Serilog.Events;
 using ILogger = Serilog.ILogger;
@@ -10,7 +8,7 @@ using ILogger = Serilog.ILogger;
 namespace Aion.Meta.Serilog;
 
 // core: This sink redirects log events into the custom logger.
-public class MapLogEvent(ILogger<MapLogEvent> inner) : ILogEventSink
+public class MapLogEvent : ILogEventSink
 {
     private ConcurrentDictionary<ActivitySpanId, ILogger> Loggers { get; } = new();
 
@@ -23,14 +21,14 @@ public class MapLogEvent(ILogger<MapLogEvent> inner) : ILogEventSink
             if (Loggers.TryRemove(executionId, out var logger) && logger is IDisposable disposable)
             {
                 disposable.Dispose();
-                inner.LogDebug("The logger for the execution '{ExecutionId}' was removed.", executionId);
+                //inner.LogDebug("The logger for the execution '{ExecutionId}' was removed.", executionId);
             }
         });
 
         // core: Register the new logger.
         if (!Loggers.TryAdd(registration.ExecutionId, register))
         {
-            inner.LogError("The logger for the execution '{ExecutionId}' is already registered.", registration.ExecutionId);
+            //inner.LogError("The logger for the execution '{ExecutionId}' is already registered.", registration.ExecutionId);
         }
 
         return registration;

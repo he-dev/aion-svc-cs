@@ -1,8 +1,6 @@
 ﻿using System;
-using System.IO;
 using Aion.Meta.Quartz;
 using Aion.Util.Data;
-using Aion.Util.Data.Scheduler;
 using Quartz;
 
 namespace Aion.Util.Buzz;
@@ -13,7 +11,7 @@ public static class CreateTrigger
     (
         WorkflowPath workflowPath,
         WorkflowMode workflowMode,
-        Action<TriggerBuilder> customize
+        Action<TriggerBuilder<IJob>> customize
     )
     {
         var jobKey = new JobKey(workflowPath.Workflow, workflowPath.Group);
@@ -23,7 +21,7 @@ public static class CreateTrigger
                 .Create()
                 .ForJob(jobKey)
                 .WithIdentity($"{workflowPath.Workflow}:{workflowMode}", workflowPath.Group)
-                .UsingJobData(JobDataKeys.WorkflowPath, workflowPath.Workflow)
+                .UsingJobData(nameof(WorkflowPath), workflowPath.Workflow)
                 .UsingJobData(workflowMode);
         customize(builder);
         return builder.Build();

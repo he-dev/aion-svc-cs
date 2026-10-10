@@ -18,9 +18,9 @@ public class WorkflowCannotExecuteDuringDowntime
 {
     public string Name => nameof(WorkflowCannotExecuteDuringDowntime);
 
-    public async Task<bool> VetoJobExecution(ITrigger trigger, IJobExecutionContext context, CancellationToken cancellationToken = default)
+    public async ValueTask<bool> VetoJobExecution(ITrigger trigger, IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var workflowPath = trigger.JobDataMap.GetString(JobDataKeys.WorkflowPath)!;
+        var workflowPath = trigger.JobDataMap.GetString(nameof(WorkflowPath))!;
 
         using var scope = logger.BeginScopeFrom(new { WorkflowName = workflowPath });
 
@@ -64,28 +64,26 @@ public class WorkflowCannotExecuteDuringDowntime
         return false;
     }
 
-    public Task TriggerFired(ITrigger trigger, IJobExecutionContext context, CancellationToken cancellationToken = default)
+    public ValueTask TriggerFired(ITrigger trigger, IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var profileName = trigger.JobDataMap.GetString(JobDataKeys.ProfileName)!;
-        var workflowName = trigger.JobDataMap.GetString(JobDataKeys.WorkflowPath)!;
+        var workflowPath = trigger.JobDataMap.GetString(nameof(WorkflowPath))!;
 
-        using var scope = logger.BeginScopeFrom(new { ProfileName = profileName });
+        using var scope = logger.BeginScopeFrom(new { WorkflowPath = workflowPath });
         logger.LogDebug("Workflow trigger '{TriggerName}' has fired.", trigger.Key.Name);
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task TriggerMisfired(ITrigger trigger, CancellationToken cancellationToken = default)
+    public ValueTask TriggerMisfired(ITrigger trigger, CancellationToken cancellationToken = default)
     {
-        var profileName = trigger.JobDataMap.GetString(JobDataKeys.ProfileName)!;
-        var workflowName = trigger.JobDataMap.GetString(JobDataKeys.WorkflowPath)!;
+        var workflowPath = trigger.JobDataMap.GetString(nameof(WorkflowPath))!;
 
-        using var scope = logger.BeginScopeFrom(new { ProfileName = profileName });
+        using var scope = logger.BeginScopeFrom(new { WorkflowPath = workflowPath });
         logger.LogWarning("Workflow trigger '{TriggerName}' has misfired.", trigger.Key.Name);
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task TriggerComplete(ITrigger trigger, IJobExecutionContext context, SchedulerInstruction triggerInstructionCode, CancellationToken cancellationToken = default)
+    public ValueTask TriggerComplete(ITrigger trigger, IJobExecutionContext context, SchedulerInstruction triggerInstructionCode, CancellationToken cancellationToken = default)
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 }

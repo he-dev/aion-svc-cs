@@ -2,7 +2,7 @@
   "Enabled": true,
   "Cron": "0/5 * * * * ?",
   "Variables": {},
-  "Logger":  "file-28-days",
+  "Logger":  "@profile",
   "Steps": [
     {
       "Enabled": true,

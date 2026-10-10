@@ -6,7 +6,7 @@ namespace Aion.Util.Data.Scheduler;
 
 public record SchedulerOptions
 {
-    public string Cron { get; init; } = null!;
+    public WorkflowPolling Polling { get; init; } = new();
 
     public TimeSpan StartDelay { get; init; }
 
@@ -17,6 +17,12 @@ public record SchedulerOptions
 
     [JsonIgnore]
     public string Name => Path.GetDirectoryName(Home)!;
+}
+
+public record WorkflowPolling
+{
+    public string Cron { get; init; } = null!;
+    public bool Enabled { get; init; } = true;
 }
 
 public record SchedulerDirectory(string Path)

@@ -18,8 +18,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Quartz;
-using Quartz.AspNetCore;
-using Quartz.Impl.Matchers;
 using Serilog;
 using ExecuteStep = Aion.Core.Objective.Workflows.ExecuteStep;
 
@@ -38,8 +36,8 @@ builder.Services.AddSingleton<MapLogEvent>();
 
 builder
     .Configuration
+    .AddJsonFile("appsettings.Scheduler.json", optional: false, reloadOnChange: true)
     .AddJsonFile("appsettings.Serilog.json", optional: true, reloadOnChange: true)
-    .AddJsonFile("appsettings.Profiles.json", optional: false, reloadOnChange: true)
     .AddCommandLine(args);
 
 builder
@@ -73,14 +71,14 @@ builder.Services.AddScoped<WorkflowPollingJob>();
 
 
 // meta: These two services must be singletons because otherwise cannot inject them into ITriggerListener instances.
-builder.Services.AddSingleton<FindWorkflows>();
-builder.Services.AddSingleton<GetWorkflow>();
-builder.Services.AddSingleton<GetProfile>();
-builder.Services.AddSingleton<GetLoggingPreset>();
+builder.Services.AddScoped<FindWorkflows>();
+builder.Services.AddScoped<GetWorkflow>();
+builder.Services.AddScoped<GetProfile>();
+builder.Services.AddScoped<GetLoggingPreset>();
 
-builder.Services.AddSingleton<DeserializeLoggingPreset>();
-builder.Services.AddSingleton<DeserializeWorkflowProfile>();
-builder.Services.AddSingleton<DeserializeWorkflowSpec>();
+builder.Services.AddScoped<DeserializeLoggingPreset>();
+builder.Services.AddScoped<DeserializeWorkflowProfile>();
+builder.Services.AddScoped<DeserializeWorkflowSpec>();
 
 builder.Services.AddScoped<CreateWorkflow>();
 builder.Services.AddScoped<ExecuteWorkflow>();
@@ -88,20 +86,24 @@ builder.Services.AddScoped<ExecuteStep>();
 builder.Services.AddScoped<IStepExecutionRule, StepMustBeEnabled>();
 builder.Services.AddScoped<IStepExecutionRule, StepDependsOnPrevious>();
 builder.Services.AddScoped<StartProcess>();
-builder.Services.AddScoped<WorkflowSynchronizationMustBeEnabled>();
+builder.Services.AddScoped<WorkflowPollingMustBeEnabled>();
 builder.Services.AddScoped<WorkflowCannotExecuteDuringDowntime>();
 
 builder.Services.AddQuartz(configure =>
 {
-    configure.AddTriggerListener<WorkflowSynchronizationMustBeEnabled>(GroupMatcher<TriggerKey>.GroupStartsWith(nameof(WorkflowPollingJob)));
-    configure.AddTriggerListener<WorkflowCannotExecuteDuringDowntime>(GroupMatcher<TriggerKey>.GroupStartsWith(nameof(WorkflowExecutionJob)));
+    // todo: These need to use other matchers.
+    configure.AddTriggerListener<WorkflowPollingMustBeEnabled>(WorkflowPollingMustBeEnabled.Matchers);
+    //configure.AddTriggerListener<WorkflowCannotExecuteDuringDowntime>(GroupMatcher<TriggerKey>.GroupStartsWith(nameof(WorkflowExecutionJob)));
 
-    // note: The docs say that the default is 1 minute.
-    configure.MisfireThreshold = TimeSpan.FromMinutes(2);
+    configure.UseInMemoryStore(options =>
+    {
+        // note: The docs say that the default is 1 minute.
+        options.MisfireThreshold = TimeSpan.FromMinutes(2);
+    });
 });
 
 
-builder.Services.AddQuartzServer(options =>
+builder.Services.AddQuartzHostedService(options =>
 {
     var schedulerOptions = builder.Configuration.GetRequiredSection("Scheduler").Get<SchedulerOptions>()!;
 

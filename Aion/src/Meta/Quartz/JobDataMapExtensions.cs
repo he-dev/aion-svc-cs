@@ -21,10 +21,6 @@ public static class JobDataMapExtensions
         throw new KeyNotFoundException($"The code is trying to get the value for the {key} key, but it does not exist in the {nameof(JobDataMap)}.");
     }
 
-    public static void PutEnum<T>(this JobDataMap map, T value) where T : Enum
-    {
-        map.Put(typeof(T).Name, value.ToString());
-    }
 
     public static T GetEnum<T>(this JobDataMap map) where T : struct, Enum
     {

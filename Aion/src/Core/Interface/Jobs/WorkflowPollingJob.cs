@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Aion.Core.Objective;
 using Aion.Meta.Logging;
@@ -17,14 +18,9 @@ internal class WorkflowPollingJob
     SynchronizeWorkflows synchronizeWorkflows
 ) : IJob
 {
-    public async Task Execute(IJobExecutionContext context)
+    public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var profileName = context.Trigger.JobDataMap.GetString(JobDataKeys.ProfileName)!;
-        using var scope = logger.BeginScopeFrom(new
-        {
-            JobName = context.JobDetail.Key.Name,
-            ProfileName = profileName
-        });
+        using var scope = logger.BeginScopeFrom(new { JobName = context.JobDetail.Key.Name, });
 
         logger.LogDebug("Executing '{JobName}'.", context.JobDetail.Key.Name);
         try
@@ -34,7 +30,7 @@ internal class WorkflowPollingJob
         catch (Exception ex)
         {
             logger.LogError(ex, "Job '{JobName}' failed.", context.JobDetail.Key.Name);
-            throw new JobExecutionException(ex, refireImmediately: false);
+            throw new JobExecutionException(ex);
         }
     }
 }

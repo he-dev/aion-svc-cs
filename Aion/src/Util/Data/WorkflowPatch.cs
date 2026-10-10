@@ -1,5 +1,4 @@
-﻿using System.Collections.Immutable;
-using Quartz;
+﻿using Quartz;
 
 namespace Aion.Util.Data;
 

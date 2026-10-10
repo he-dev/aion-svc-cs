@@ -5,7 +5,7 @@ using Aion.Core.Interface.Endpoints.Filters;
 using Aion.Core.Objective.Workflows;
 using Aion.Meta;
 using Aion.Meta.Quartz;
-using Aion.Util.Data.Scheduler;
+using Aion.Util.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -38,7 +38,7 @@ public static class SchedulesEndpoint
                 orderby next.FirstOrDefault()
                 select new
                 {
-                    workflow = trigger.JobDataMap.GetString(JobDataKeys.WorkflowPath),
+                    workflow = trigger.JobDataMap.GetString(nameof(WorkflowPath)),
                     cron = ((ICronTrigger)trigger).CronExpressionString,
                     next
                 }

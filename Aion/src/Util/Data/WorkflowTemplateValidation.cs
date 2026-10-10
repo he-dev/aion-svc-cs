@@ -87,7 +87,7 @@ public sealed class MustBeCronAttribute : StringValidationAttribute
 
         try
         {
-            CronExpression.ValidateExpression(value);
+            _ = CronExpression.Parse(value);
         }
         catch (FormatException ex)
         {

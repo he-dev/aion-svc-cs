@@ -6,10 +6,7 @@ public record WorkflowPath(string Home, string Workflow)
 {
     public string Group => Path.GetDirectoryName(Workflow)!;
 
-    public string Name => Path.GetFileName(Workflow);
+    public override string ToString() => Path.Join(Home, Workflow);
 
-    public static implicit operator string(WorkflowPath workflowPath)
-    {
-        return Path.Join(workflowPath.Home, workflowPath.Group, workflowPath.Workflow);
-    }
+    public static implicit operator string(WorkflowPath workflowPath) => workflowPath.ToString();
 }

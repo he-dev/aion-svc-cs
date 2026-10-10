@@ -15,7 +15,7 @@
       "launchBrowser": false,
       "launchUrl": "swagger",
       "applicationUrl": "http://localhost:5049",
-      "commandLineArgs": "--Scheduler:Profiles:hallo:Sync:Enabled=false",
+      "commandLineArgs": "--Scheduler:Polling:Enabled=false",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }

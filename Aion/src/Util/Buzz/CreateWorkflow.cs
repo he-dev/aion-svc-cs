@@ -28,7 +28,7 @@ public class CreateWorkflow
 
         try
         {
-            CronExpression.ValidateExpression(spec.Cron);
+            _ = CronExpression.Parse(spec.Cron);
         }
         catch (Exception e)
         {
@@ -54,7 +54,7 @@ public class CreateWorkflow
 
         var variableGroups = ImmutableList<IVariableGroup>.Empty.AddRange
         ([
-             new SchedulerVariableGroup
+            new SchedulerVariableGroup
             {
                 Home = schedulerOptions.Value.Home,
                 Name = schedulerOptions.Value.Name,

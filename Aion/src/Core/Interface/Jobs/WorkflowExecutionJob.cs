@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Aion.Core.Objective.Workflows;
 using Aion.Meta.Logging;
@@ -21,9 +22,9 @@ public class WorkflowExecutionJob
     ExecuteWorkflow executeWorkflow
 ) : IJob
 {
-    public async Task Execute(IJobExecutionContext context)
+    public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var workflowPath = context.Trigger.JobDataMap.GetString(JobDataKeys.WorkflowPath)!;
+        var workflowPath = context.Trigger.JobDataMap.GetString(nameof(WorkflowPath))!;
         var workflowMode = context.Trigger.JobDataMap.GetEnum<WorkflowMode>();
 
         using var scope = logger.BeginScopeFrom(new
@@ -42,13 +43,13 @@ public class WorkflowExecutionJob
             if (workflowMode == WorkflowMode.Cron && !stepResults.Any())
             {
                 logger.LogWarning("Unscheduling workflow '{WorkflowPath}' because it does not do anything.", workflowPath);
-                await context.Scheduler.DeleteJob(context.JobDetail.Key);
+                await context.Scheduler.DeleteJob(context.JobDetail.Key, cancellationToken);
             }
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Workflow '{WorkflowPath}' failed.", workflowPath);
-            throw new JobExecutionException(ex, refireImmediately: false);
+            throw new JobExecutionException(ex);
         }
     }
 }
