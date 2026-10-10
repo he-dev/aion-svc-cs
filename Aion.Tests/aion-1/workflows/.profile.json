@@ -1,0 +1,8 @@
+{
+  "Variables": {
+    "test": "test",
+    "NpcExe": "{{ Environment.AION_HOME }}\\Aion.Npc\\bin\\Debug\\net10.0\\Aion.Npc.exe",
+    "Logs": "{{ Environment.TEMP }}\\aion\\{{ Scheduler.Name }}"
+  },
+  "Logging": "workflow-file-28-days"
+}

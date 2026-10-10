@@ -1,0 +1,16 @@
+{
+  "Sync": {
+    "Enabled": true,
+    "Cron": "0 0/20 * * * ?"
+  },
+  "Workflows": {
+    "Includes": [
+      "**\\*.json"
+    ],
+    "Excludes": []
+  },
+  "Parameters": {},
+  "Environment": {
+    "NPC_MODE": "hallo"
+  }
+}

@@ -1,18 +1,16 @@
 ﻿using System;
-using Aion.Core.Endpoints;
-using Aion.Core.Jobs;
-using Aion.Core.Services.Downtimes;
-using Aion.Core.Services.Profiles;
-using Aion.Core.Services.Workflows;
+using Aion.Core.Interface.Endpoints;
+using Aion.Core.Interface.Jobs;
+using Aion.Core.Objective;
+using Aion.Core.Objective.Downtimes;
+using Aion.Core.Objective.Workflows;
 using Aion.Meta;
 using Aion.Meta.Serilog;
 using Aion.Meta.Serilog.Enriching;
-using Aion.Util;
-using Aion.Util.Scheduler;
-using Aion.Util.Scheduler.JobExecutionRules;
-using Aion.Util.Services;
-using Aion.Util.Services.Synchronizations;
-using Aion.Util.StepExecutionRules;
+using Aion.Util.Buzz;
+using Aion.Util.Data.Scheduler;
+using Aion.Util.Data.Scheduler.JobExecutionRules;
+using Aion.Util.Data.StepExecutionRules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,7 +21,7 @@ using Quartz;
 using Quartz.AspNetCore;
 using Quartz.Impl.Matchers;
 using Serilog;
-using ExecuteStep = Aion.Core.Services.Workflows.ExecuteStep;
+using ExecuteStep = Aion.Core.Objective.Workflows.ExecuteStep;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -70,19 +68,19 @@ builder
 
 builder.Services.AddSingleton(x => x.GetRequiredService<IHostEnvironment>().ContentRootFileProvider);
 
-builder.Services.AddScoped<WorkflowJob>();
-builder.Services.AddScoped<ProfileJob>();
+builder.Services.AddScoped<WorkflowExecutionJob>();
+builder.Services.AddScoped<WorkflowPollingJob>();
 
-// meta: The order these services are registered specifies their execution order.
-builder.Services.AddTransient<SynchronizeWorkflowAction, ScheduleCustomWorkflow>();
-builder.Services.AddTransient<SynchronizeWorkflowAction, UnscheduleDisabledWorkflow>();
-builder.Services.AddTransient<SynchronizeWorkflowAction, UnscheduleEmptyWorkflow>();
-builder.Services.AddTransient<SynchronizeWorkflowAction, RescheduleChangedWorkflow>();
-builder.Services.AddTransient<SynchronizeWorkflowAction, ScheduleRegularWorkflow>();
 
 // meta: These two services must be singletons because otherwise cannot inject them into ITriggerListener instances.
 builder.Services.AddSingleton<FindWorkflows>();
+builder.Services.AddSingleton<GetWorkflow>();
 builder.Services.AddSingleton<GetProfile>();
+builder.Services.AddSingleton<GetLoggingPreset>();
+
+builder.Services.AddSingleton<DeserializeLoggingPreset>();
+builder.Services.AddSingleton<DeserializeWorkflowProfile>();
+builder.Services.AddSingleton<DeserializeWorkflowSpec>();
 
 builder.Services.AddScoped<CreateWorkflow>();
 builder.Services.AddScoped<ExecuteWorkflow>();
@@ -95,8 +93,8 @@ builder.Services.AddScoped<WorkflowCannotExecuteDuringDowntime>();
 
 builder.Services.AddQuartz(configure =>
 {
-    configure.AddTriggerListener<WorkflowSynchronizationMustBeEnabled>(GroupMatcher<TriggerKey>.GroupStartsWith(nameof(ProfileJob)));
-    configure.AddTriggerListener<WorkflowCannotExecuteDuringDowntime>(GroupMatcher<TriggerKey>.GroupStartsWith(nameof(WorkflowJob)));
+    configure.AddTriggerListener<WorkflowSynchronizationMustBeEnabled>(GroupMatcher<TriggerKey>.GroupStartsWith(nameof(WorkflowPollingJob)));
+    configure.AddTriggerListener<WorkflowCannotExecuteDuringDowntime>(GroupMatcher<TriggerKey>.GroupStartsWith(nameof(WorkflowExecutionJob)));
 
     // note: The docs say that the default is 1 minute.
     configure.MisfireThreshold = TimeSpan.FromMinutes(2);
@@ -113,10 +111,10 @@ builder.Services.AddQuartzServer(options =>
 });
 
 
-builder.Services.AddScoped<GetWorkflowsInfo>();
-builder.Services.AddScoped<SynchronizeWorkflow>();
-builder.Services.AddScoped<SynchronizeProfile>();
-builder.Services.AddScoped<ScheduleProfile>();
+builder.Services.AddScoped<GetWorkflowInfo>();
+builder.Services.AddScoped<ScheduleWorkflow>();
+builder.Services.AddScoped<SynchronizeWorkflows>();
+builder.Services.AddScoped<ScheduleWorkflowPolling>();
 builder.Services.AddScoped<ExecuteWorkflow>();
 builder.Services.AddScoped<GetProfileTriggers>();
 builder.Services.AddScoped<GetDowntimes>();
@@ -127,20 +125,6 @@ builder.Services.AddProblemDetails();
 //builder.Services.AddExceptionHandler<WorkflowNotExecutableExceptionHandler>();
 
 var app = builder.Build();
-
-// todo: new logger test
-using (var scope = app.Services.CreateScope())
-{
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    using var step = logger.Begin(new Output.Workflow.ExecuteStep.Now { StepIndex = 1 });
-    logger.Output.Note.LogInformation("This step has a note.");
-    step.LogStatus(new Output.Workflow.ExecuteStep.Now.Ok { ItemsProcessed = 100 });
-    //step.LogStatus(new Contracts.DeleteFile.Force.Ok("test.txt")); // note: Not assignable! Check!
-
-    logger.Engine.Text.LogDebug("This is a log text.");
-    //logger.LogStatus(new Engine.DeleteFile.Ok("test.txt"));
-    //logger.Engine.LogStatus(new Contracts.Workflow.ExecuteStep.Now.Ok(7)); // note: Not assignable! Check!
-}
 
 //app.UseExceptionHandler();
 app.UseSerilogRequestLogging();
@@ -160,12 +144,9 @@ app.MapDowntimes();
 
 using (var scope = app.Services.CreateScope())
 {
-    var getProfile = scope.ServiceProvider.GetRequiredService<GetProfile>();
-    var scheduleProfile = scope.ServiceProvider.GetRequiredService<ScheduleProfile>();
-    foreach (var profile in getProfile.All())
-    {
-        await scheduleProfile.For(profile);
-    }
+    // todo: create the profile sync-job.
+    var scheduleWorkflowPolling = scope.ServiceProvider.GetRequiredService<ScheduleWorkflowPolling>();
+    await scheduleWorkflowPolling.Invoke();
 }
 
 app.Run();

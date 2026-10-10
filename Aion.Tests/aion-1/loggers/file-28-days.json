@@ -1,0 +1,18 @@
+﻿{
+  "Serilog": {
+    "MinimumLevel": {
+      "Default": "Information"
+    },
+    "WriteTo": [
+      {
+        "Name": "File",
+        "Args": {
+          "path": "{{ Scheduler.Logs }}\\{{ Profile.Name }}\\{{ Workflow.Name }}-{{ Workflow.Mode }}_.log",
+          "outputTemplate": "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext} {Message:lj} {Properties}{NewLine}{Exception}",
+          "rollingInterval": "Day",
+          "retainedFileCountLimit": 28
+        }
+      }
+    ]
+  }
+}

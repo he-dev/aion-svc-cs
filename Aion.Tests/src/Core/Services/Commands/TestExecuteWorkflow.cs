@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Aion.Core.Objective.Workflows;
 using Aion.Core.Services;
-using Aion.Core.Services.Workflows;
 using Aion.Util;
-using Aion.Util.Services;
+using Aion.Util.Buzz;
+using Aion.Util.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -30,12 +31,12 @@ public class TestExecuteWorkflow(TestWebApplication testWebApplication) : IClass
 
         var createWorkflow = scope.ServiceProvider.GetRequiredService<CreateWorkflow>();
         var executeWorkflow = scope.ServiceProvider.GetRequiredService<ExecuteWorkflow>();
-        var getProfile = scope.ServiceProvider.GetRequiredService<GetProfile>();
+        var getProfile = scope.ServiceProvider.GetRequiredService<GetProfiles>();
         var findWorkflows = scope.ServiceProvider.GetRequiredService<FindWorkflows>();
 
         var profile = getProfile.Single("tests");
         var workflowPath = findWorkflows.Single(new WorkflowSearchCriteria(profile, testCase));
-        var workflowTemplate = await WorkflowConfiguration.FromFile(workflowPath);
+        var workflowTemplate = await WorkflowSpec.FromFile(workflowPath);
         var workflow = await createWorkflow.From(workflowTemplate);
         var actual = await executeWorkflow.Now(workflow);
         var expected = WorkflowTestCase.Parse(testCase).ToList();
@@ -79,7 +80,7 @@ public record ExpectedStepResult(int? ExitCode, StepStatus Status, TimeSpan Dura
                 ok.Groups["durationSeconds"].Success
                     ? TimeSpan.FromSeconds(int.Parse(ok.Groups["durationSeconds"].Value))
                     : TimeSpan.Zero;
-            return new ExpectedStepResult(ExitCode: 0, StepStatus.Ok, duration);
+            return new ExpectedStepResult(ExitCode: 0, StepStatus.Okay, duration);
         }
 
         if (StatusError.Match(testCase) is { Success: true } error)
@@ -96,7 +97,7 @@ public record ExpectedStepResult(int? ExitCode, StepStatus Status, TimeSpan Dura
 
         if (StatusDisabled.Match(testCase) is { Success: true })
         {
-            return new ExpectedStepResult(null, StepStatus.Disabled, TimeSpan.Zero);
+            return new ExpectedStepResult(null, StepStatus.None, TimeSpan.Zero);
         }
 
         throw new ArgumentOutOfRangeException(nameof(testCase), testCase, "Invalid test case.");
