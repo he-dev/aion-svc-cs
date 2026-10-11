@@ -15,7 +15,7 @@
       "launchBrowser": false,
       "launchUrl": "swagger",
       "applicationUrl": "http://localhost:5049",
-      "commandLineArgs": "--Scheduler:Polling:Enabled=false",
+      "commandLineArgs": "--Scheduler:Polling:Disabled=true",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }

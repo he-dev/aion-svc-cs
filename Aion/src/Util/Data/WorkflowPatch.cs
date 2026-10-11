@@ -2,6 +2,7 @@
 
 namespace Aion.Util.Data;
 
+// core: This class specifies properties that can be overridden by the user.
 public record WorkflowPatch
 {
     public ITrigger? Trigger { get; init; }

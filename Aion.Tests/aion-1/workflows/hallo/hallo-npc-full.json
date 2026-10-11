@@ -1,133 +1,37 @@
 {
   "Enabled": true,
   "Cron": "0/5 * * * * ?",
-  "Parameters": {},
-  "Environment": {},
+  "Logger": "@profile",
   "Steps": [
     {
       "Enabled": true,
       "FileName": "{{ Parameters.NpcExe }}",
       "Arguments": null,
       "Environment": {},
-      "Timeout": null,
-      "Logging": {
-        "Preset": "StepFile28Days",
-        "Target": "Self, Main"
-      }
+      "Timeout": null
     },
     {
       "Enabled": true,
       "FileName": "{{ Parameters.NpcExe }}",
-      "Arguments": {
-        "--named": "named",
-        "_": "positional",
-        "$": "--raw value",
-        "--array-default[]": [
-          "one",
-          "two",
-          "three"
-        ],
-        "--array-separated=[,]": [
-          "one",
-          "two",
-          "three"
-        ]
-      },
-      "Environment": {},
-      "Timeout": null,
-      "Logging": {
-        "Preset": "StepFile28Days",
-        "Target": "Self, Main"
-      }
+      "Arguments": [
+        "--named named",
+        "positional",
+        "--raw value",
+        "--array-default one two three",
+        "--array-separated one,two,three"
+      ]
     },
     {
       "Enabled": false,
-      "FileName": "{{ Parameters.NpcExe }}",
-      "Arguments": null,
-      "Environment": {},
-      "Timeout": null,
-      "OnError": null,
-      "Logging": {
-        "Preset": "StepFile28Days"
-      }
+      "FileName": "{{ Parameters.NpcExe }}"
     },
     {
       "Enabled": true,
       "FileName": "{{ Parameters.NpcExe }}",
-      "Arguments": {
-        "--sleep": 2
-      },
-      "Timeout": "00:00:01",
-      "OnError": "continue",
-      "Logging": {
-        "Preset": "StepFile28Days"
-      }
-    },
-    {
-      "Enabled": true,
-      "FileName": "{{ Parameters.NpcExe }}",
-      "Arguments": null,
-      "Environment": {},
-      "Timeout": null,
-      "OnError": null,
-      "Logging": {}
-    },
-    {
-      "Enabled": true,
-      "FileName": "{{ Parameters.NpcExe }}",
-      "Arguments": null,
-      "Environment": {},
-      "Timeout": null,
-      "OnError": null,
-      "Logging": {
-        "Custom": {
-          "MinimumLevel": {
-            "Default": "Information"
-          },
-          "WriteTo": [
-            {
-              "Name": "File",
-              "Args": {
-                "path": "{{ Parameters.LogsDirectory }}\\{{ Profile.Name }}\\{{ Workflow.Mode }}\\{{ Workflow.Name }}-step-{{ Step.Index | object.format 'D1' }}_.log",
-                "outputTemplate": "{Timestamp:HH:mm:ss.fff} [{Level:u3}] [{ConsoleStreamType}] {Message:lj}{NewLine}",
-                "rollingInterval": "Day",
-                "retainedFileCountLimit": 28
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "Enabled": true,
-      "FileName": "{{ Parameters.NpcExe }}",
-      "Arguments": null,
-      "Environment": {},
-      "Timeout": null,
-      "OnError": null,
-      "Logging": {
-        "Source": "Preset",
-        "Preset": "StepFile28Days",
-        "Custom": {
-          "MinimumLevel": {
-            "Default": "Information"
-          },
-          "WriteTo": [
-            {
-              "Name": "File",
-              "Args": {
-                "path": "{{ Parameters.LogsDirectory }}\\{{ Profile.Name }}\\{{ Workflow.Mode }}\\{{ Workflow.Name }}-step-{{ Step.Index | object.format 'D1' }}_.log",
-                "outputTemplate": "{Timestamp:HH:mm:ss.fff} [{Level:u3}] [{ConsoleStreamType}] {Message:lj}{NewLine}",
-                "rollingInterval": "Day",
-                "retainedFileCountLimit": 28
-              }
-            }
-          ]
-        }
-      }
+      "Arguments": [
+        "--sleep 2"
+      ],
+      "Timeout": "00:00:01"
     }
-  ],
-  "Logging": {
-    "Preset": "WorkflowFile28Days"
-  }
+  ]
 }

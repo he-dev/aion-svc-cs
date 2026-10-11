@@ -8,9 +8,8 @@ using Aion.Meta;
 using Aion.Meta.Serilog;
 using Aion.Meta.Serilog.Enriching;
 using Aion.Util.Buzz;
+using Aion.Util.Buzz.TriggerListeners;
 using Aion.Util.Data.Scheduler;
-using Aion.Util.Data.Scheduler.JobExecutionRules;
-using Aion.Util.Data.StepExecutionRules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -72,19 +71,17 @@ builder.Services.AddScoped<WorkflowPollingJob>();
 
 // meta: These two services must be singletons because otherwise cannot inject them into ITriggerListener instances.
 builder.Services.AddScoped<FindWorkflows>();
-builder.Services.AddScoped<GetWorkflow>();
-builder.Services.AddScoped<GetProfile>();
-builder.Services.AddScoped<GetLoggingPreset>();
+builder.Services.AddScoped<ComposeWorkflow>();
+builder.Services.AddScoped<LoadWorkflowProfile>();
+builder.Services.AddScoped<LoadLoggingPreset>();
 
-builder.Services.AddScoped<DeserializeLoggingPreset>();
-builder.Services.AddScoped<DeserializeWorkflowProfile>();
-builder.Services.AddScoped<DeserializeWorkflowSpec>();
+builder.Services.AddScoped<LoadLoggingPreset>();
+builder.Services.AddScoped<LoadWorkflowProfile>();
+builder.Services.AddScoped<LoadWorkflowSpec>();
 
-builder.Services.AddScoped<CreateWorkflow>();
+builder.Services.AddScoped<ComposeWorkflow>();
 builder.Services.AddScoped<ExecuteWorkflow>();
 builder.Services.AddScoped<ExecuteStep>();
-builder.Services.AddScoped<IStepExecutionRule, StepMustBeEnabled>();
-builder.Services.AddScoped<IStepExecutionRule, StepDependsOnPrevious>();
 builder.Services.AddScoped<StartProcess>();
 builder.Services.AddScoped<WorkflowPollingMustBeEnabled>();
 builder.Services.AddScoped<WorkflowCannotExecuteDuringDowntime>();
@@ -113,7 +110,7 @@ builder.Services.AddQuartzHostedService(options =>
 });
 
 
-builder.Services.AddScoped<GetWorkflowInfo>();
+builder.Services.AddScoped<ComposeWorkflowInfo>();
 builder.Services.AddScoped<ScheduleWorkflow>();
 builder.Services.AddScoped<SynchronizeWorkflows>();
 builder.Services.AddScoped<ScheduleWorkflowPolling>();
@@ -146,9 +143,7 @@ app.MapDowntimes();
 
 using (var scope = app.Services.CreateScope())
 {
-    // todo: create the profile sync-job.
-    var scheduleWorkflowPolling = scope.ServiceProvider.GetRequiredService<ScheduleWorkflowPolling>();
-    await scheduleWorkflowPolling.Invoke();
+    await scope.ServiceProvider.GetRequiredService<ScheduleWorkflowPolling>().Invoke();
 }
 
 app.Run();

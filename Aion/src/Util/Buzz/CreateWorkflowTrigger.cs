@@ -1,11 +1,11 @@
 ﻿using System;
-using Aion.Meta.Quartz;
+using System.Linq;
 using Aion.Util.Data;
 using Quartz;
 
 namespace Aion.Util.Buzz;
 
-public static class CreateTrigger
+public static class CreateWorkflowTrigger
 {
     private static ITrigger Create
     (
@@ -14,15 +14,20 @@ public static class CreateTrigger
         Action<TriggerBuilder<IJob>> customize
     )
     {
-        var jobKey = new JobKey(workflowPath.Workflow, workflowPath.Group);
+        var group = string.Join('/', new[] { "workflows", workflowPath.Directory }.Where(x => !string.IsNullOrEmpty(x)));
+        var jobKey = new JobKey(workflowPath.Workflow, group);
 
         var builder =
             TriggerBuilder
                 .Create()
                 .ForJob(jobKey)
-                .WithIdentity($"{workflowPath.Workflow}:{workflowMode}", workflowPath.Group)
-                .UsingJobData(nameof(WorkflowPath), workflowPath.Workflow)
-                .UsingJobData(workflowMode);
+                // core: Cron and User triggers are different triggers.
+                .WithIdentity($"{workflowPath.Workflow}:{workflowMode}", group)
+                .UsingJobData(new JobDataMap
+                {
+                    { nameof(WorkflowPath), workflowPath },
+                    { nameof(WorkflowMode), workflowMode }
+                });
         customize(builder);
         return builder.Build();
     }

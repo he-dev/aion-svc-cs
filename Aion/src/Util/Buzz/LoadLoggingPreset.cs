@@ -3,13 +3,30 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Aion.Meta.Serilog;
+using Aion.Util.Data.Scheduler;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Aion.Util.Buzz;
 
-public class DeserializeLoggingPreset(ILogger<DeserializeLoggingPreset> logger)
+public class LoadLoggingPreset(ILogger<LoadLoggingPreset> logger, IOptions<SchedulerOptions> schedulerOptions)
 {
-    public async Task<JsonObject?> Where(string loggingPresetPath)
+    public async Task<Serilog.ILogger> Where(string loggingPresetName)
+    {
+        if (string.IsNullOrWhiteSpace(loggingPresetName))
+        {
+            logger.LogInformation("Logging preset not specified.");
+            return Serilog.Core.Logger.None;
+        }
+
+        // core: Create the path to the logging-preset-file.
+        var loggingPresetPath = Path.Combine(schedulerOptions.Value.Home, "loggers", $"{loggingPresetName}.json");
+        var logging = await Deserialize(loggingPresetPath);
+        return logging is null ? Serilog.Core.Logger.None : logging.ToLogger();
+    }
+
+    public async Task<JsonObject?> Deserialize(string loggingPresetPath)
     {
         if (!File.Exists(loggingPresetPath))
         {

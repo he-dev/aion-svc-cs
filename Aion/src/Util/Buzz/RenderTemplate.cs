@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Immutable;
+using Aion.Util.Data.Templating;
 using Scriban;
 using Scriban.Functions;
 using Scriban.Parsing;
 using Scriban.Runtime;
 using Scriban.Syntax;
 
-namespace Aion.Util.Data.Templating.Services;
+namespace Aion.Util.Buzz;
 
 // https://github.com/scriban/scriban/tree/master/doc
 

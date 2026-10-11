@@ -7,49 +7,41 @@ using Aion.Meta;
 using Aion.Meta.Logging;
 using Aion.Util.Data;
 using Aion.Util.Data.Scheduler;
-using Aion.Util.Data.Templating.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Quartz;
 
 namespace Aion.Util.Buzz;
 
-public class CreateWorkflow
+public class ComposeWorkflow
 (
-    ILogger<CreateWorkflow> logger,
+    ILogger<ComposeWorkflow> logger,
     IOptions<SchedulerOptions> schedulerOptions,
-    GetLoggingPreset getLoggingPreset
+    LoadWorkflowSpec loadWorkflowSpec,
+    LoadWorkflowProfile loadWorkflowProfile,
+    LoadLoggingPreset loadLoggingPreset
 )
 {
-    public async Task<Workflow> From(WorkflowSpec spec, WorkflowProfile profile, WorkflowPatch patch)
+    public async Task<Workflow> From(WorkflowPath workflowPath, WorkflowPatch patch)
     {
-        using var scope = logger.BeginScopeFrom(new { spec.Path });
-        logger.LogTrace("Rendering workflow.");
+        using var scope = logger.BeginScopeWith(("aion.workflow.path", workflowPath.Workflow));
+        logger.LogTrace("Composing workflow '{aion.workflow.path}'.", workflowPath.Workflow);
 
-        try
+        var profile = await loadWorkflowProfile.FromFile(workflowPath);
+        var spec = await loadWorkflowSpec.FromFile(workflowPath, temp => temp with
         {
-            _ = CronExpression.Parse(spec.Cron);
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Workflow '{WorkflowPath}' specifies an invalid cron expression: '{CronExpression}'", spec.Path, spec.Cron);
-            return Workflow.Disabled with { Path = spec.Path, Exception = e };
-        }
-
-        var loggerName = spec.Logger;
-        if (loggerName?.Trim().Equals("@profile", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            loggerName = profile.Logger;
-        }
+            Variables = (profile.Variables ?? new()).Concat(temp.Variables ?? new()).KeepLast().ToDictionary(),
+            Logger = temp.Logger?.Equals("@profile", StringComparison.OrdinalIgnoreCase) == true ? profile.Logger : temp?.Logger
+        });
 
         // meta: Create a partial workflow first so that we can use the Mode property for variables.
         var workflow = new Workflow
         {
-            Enabled = spec.Enabled,
+            Disabled = spec.Disabled,
             Path = spec.Path,
-            Logger = loggerName is null ? Serilog.Core.Logger.None : await getLoggingPreset.Where(loggerName),
-            Trigger = patch.Trigger ?? CreateTrigger.Cron(spec.Path, spec.Cron),
-            Variables = (profile.Variables ?? new()).Concat(spec.Variables ?? new()).KeepLast().ToImmutableDictionary()
+            Logger = spec.Logger is null ? Serilog.Core.Logger.None : await loadLoggingPreset.Where(spec.Logger),
+            Trigger = patch.Trigger ?? CreateWorkflowTrigger.Cron(spec.Path, spec.Cron),
+            Variables = (spec.Variables ?? new()).ToImmutableDictionary()
         };
 
         var variableGroups = ImmutableList<IVariableGroup>.Empty.AddRange
@@ -66,7 +58,7 @@ public class CreateWorkflow
             }
         ]);
 
-        var executableSteps = spec.Steps.Where(step => step.Enabled);
+        var executableSteps = spec.Steps.Where(step => step.Disabled);
         if (patch.Steps.Any())
         {
             executableSteps = from selected in patch.Steps
@@ -79,7 +71,7 @@ public class CreateWorkflow
         {
             workflow = workflow with
             {
-                Steps = [.. executableSteps.Select(step => CreateStep(step, variableGroups)).Where(step => step.Enabled)],
+                Steps = [.. executableSteps.Select(step => CreateStep(step, variableGroups)).Where(step => !step.Disabled)],
             };
 
             switch (workflow.Steps.Count)
@@ -98,7 +90,7 @@ public class CreateWorkflow
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to create workflow from '{WorkflowPath}'.", spec.Path);
-            workflow = Workflow.Disabled with { Path = spec.Path, Exception = ex };
+            workflow = new Workflow { Path = spec.Path, Exception = ex };
         }
 
         return workflow;
@@ -118,19 +110,17 @@ public class CreateWorkflow
             {
                 Index = spec.Index,
                 Name = spec.Name,
-                Enabled = true,
                 FileName = spec.FileName.Render(variables),
-                Arguments = () => spec.Arguments?.Select(argument => argument.RenderValues(variables)) ?? [],
+                Arguments = () => spec.Arguments?.Select(argument => argument.Render(variables)).ToArray() ?? [],
                 Environment = (spec.Environment ?? new Dictionary<string, string>()).ToImmutableDictionary(x => x.Key, x => x.Value.Render(variables)),
                 WorkingDirectory = (spec.WorkingDirectory ?? string.Empty).Render(variables),
                 Timeout = spec.Timeout ?? System.Threading.Timeout.InfiniteTimeSpan,
-                OnError = spec.OnError ?? "continue"
             };
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to render step {StepIndex}.", spec.Index);
-            return Workflow.Step.Disabled with { Index = spec.Index, Exception = ex };
+            return new Workflow.Step { Index = spec.Index, Exception = ex };
         }
     }
 }

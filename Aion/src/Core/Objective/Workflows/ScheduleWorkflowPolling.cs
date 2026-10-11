@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Quartz;
 
-namespace Aion.Core.Objective;
+namespace Aion.Core.Objective.Workflows;
 
 public class ScheduleWorkflowPolling
 (
@@ -18,7 +18,7 @@ public class ScheduleWorkflowPolling
     public async Task Invoke()
     {
         var scheduler = await schedulerFactory.GetScheduler();
-        var schedulerHome = schedulerOptions.Value.HomeDirectory.Path;
+        var schedulerHome = schedulerOptions.Value.Home;
 
         var jobDetail = JobBuilder
             .Create<WorkflowPollingJob>()
@@ -39,6 +39,6 @@ public class ScheduleWorkflowPolling
                 .Build()
         );
 
-        logger.LogInformation("Workflow polling for '{SchedulerHome}' scheduled at '{Next}'.", schedulerHome, next);
+        logger.LogInformation("Workflow polling for '{aion.scheduler.home}' scheduled at '{Next}'.", schedulerHome, next);
     }
 }

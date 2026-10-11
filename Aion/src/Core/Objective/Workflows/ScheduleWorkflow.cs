@@ -23,7 +23,7 @@ public class ScheduleWorkflow
         using var scope = logger.BeginScopeFrom(new { WorkflowPath = workflow.Path });
         var scheduler = await schedulerFactory.GetScheduler();
 
-        if (!workflow.Enabled)
+        if (workflow.Disabled)
         {
             if (await scheduler.DeleteJob(workflow.Trigger.JobKey))
             {
@@ -35,7 +35,7 @@ public class ScheduleWorkflow
             return new ScheduleResult(workflow.Path, SynchronizationReason.None);
         }
 
-        if (!workflow.Steps.Any(step => step.Enabled))
+        if (workflow.Steps.All(step => step.Disabled))
         {
             if (await scheduler.DeleteJob(workflow.Trigger.JobKey))
             {

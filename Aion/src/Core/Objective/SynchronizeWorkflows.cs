@@ -16,7 +16,7 @@ public class SynchronizeWorkflows
     ILogger<SynchronizeWorkflows> logger,
     IOptions<SchedulerOptions> schedulerOptions,
     FindWorkflows findWorkflows,
-    GetWorkflow getWorkflow,
+    ComposeWorkflow composeWorkflow,
     ScheduleWorkflow scheduleWorkflow
 )
 {
@@ -31,7 +31,7 @@ public class SynchronizeWorkflows
             var results = ImmutableList<ScheduleResult>.Empty;
             foreach (var workflowPath in findWorkflows.Where())
             {
-                var workflow = await getWorkflow.For(workflowPath, WorkflowPatch.Empty);
+                var workflow = await composeWorkflow.From(workflowPath, WorkflowPatch.Empty);
                 var result = await scheduleWorkflow.Invoke(workflow);
                 results = results.Add(result);
             }

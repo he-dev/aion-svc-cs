@@ -1,5 +1,7 @@
 ﻿using System.Collections.Immutable;
-using Aion.Util.Data.Templating.Services;
+using System.IO;
+using Aion.Meta;
+using Aion.Util.Buzz;
 using Microsoft.Extensions.Options;
 
 namespace Aion.Util.Data.Scheduler;
@@ -10,5 +12,6 @@ public class SchedulerOptionsPostConfigure : IPostConfigureOptions<SchedulerOpti
     {
         // core: Renders the home path.
         scheduler.Home = scheduler.Home.Render(ImmutableList<IVariableGroup>.Empty);
+        scheduler.Home = Path.GetFullPath(scheduler.Home).ToSlash();
     }
 }

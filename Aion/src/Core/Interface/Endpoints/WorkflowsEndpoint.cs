@@ -24,9 +24,9 @@ public static class WorkflowsEndpoint
         workflows.MapPost("workflows:sync", Synchronize);
     }
 
-    private static async Task<IResult> GetWorkflows(GetWorkflowInfo getWorkflowInfo, [FromBody] WorkflowQuery? body)
+    private static async Task<IResult> GetWorkflows(ComposeWorkflowInfo composeWorkflowInfo, [FromBody] WorkflowQuery? body)
     {
-        var workflows = await getWorkflowInfo.Where(body?.Pattern);
+        var workflows = await composeWorkflowInfo.Where(body?.Pattern);
         return Results.Ok(workflows);
     }
 
@@ -35,8 +35,8 @@ public static class WorkflowsEndpoint
         var schedules = new List<object>();
         foreach (var workflowPath in parameters.FindWorkflows.Where(body.Pattern))
         {
-            var trigger = CreateTrigger.Simple(workflowPath, DateTimeOffset.UtcNow);
-            var workflow = await parameters.GetWorkflow.For(workflowPath, new WorkflowPatch { Trigger = trigger });
+            var trigger = CreateWorkflowTrigger.Simple(workflowPath, DateTimeOffset.UtcNow);
+            var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
             var schedule = await parameters.ScheduleWorkflow.Invoke(workflow);
             schedules.Add(new { workflow.Path.Workflow, schedule });
         }
@@ -49,8 +49,8 @@ public static class WorkflowsEndpoint
         var schedules = new List<object>();
         foreach (var workflowPath in parameters.FindWorkflows.Where(body.Pattern))
         {
-            var trigger = CreateTrigger.Simple(workflowPath, DateTimeOffset.UtcNow + body.Wait);
-            var workflow = await parameters.GetWorkflow.For(workflowPath, new WorkflowPatch { Trigger = trigger });
+            var trigger = CreateWorkflowTrigger.Simple(workflowPath, DateTimeOffset.UtcNow + body.Wait);
+            var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
             var schedule = await parameters.ScheduleWorkflow.Invoke(workflow);
             schedules.Add(new { workflow.Path.Workflow, schedule });
         }
@@ -63,8 +63,8 @@ public static class WorkflowsEndpoint
         var schedules = new List<object>();
         foreach (var workflowPath in parameters.FindWorkflows.Where(body.Pattern))
         {
-            var trigger = CreateTrigger.Simple(workflowPath, body.WhenUtc);
-            var workflow = await parameters.GetWorkflow.For(workflowPath, new WorkflowPatch { Trigger = trigger });
+            var trigger = CreateWorkflowTrigger.Simple(workflowPath, body.WhenUtc);
+            var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
             var schedule = await parameters.ScheduleWorkflow.Invoke(workflow);
             schedules.Add(new { workflow.Path.Workflow, schedule });
         }
@@ -82,7 +82,7 @@ public static class WorkflowsEndpoint
 public struct StartRequest
 {
     public FindWorkflows FindWorkflows { get; init; }
-    public GetWorkflow GetWorkflow { get; init; }
+    public ComposeWorkflow ComposeWorkflow { get; init; }
     public ScheduleWorkflow ScheduleWorkflow { get; init; }
 }
 

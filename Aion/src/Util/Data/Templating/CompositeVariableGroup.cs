@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
-using Aion.Util.Data.Templating.Services;
+using Aion.Util.Buzz;
 using Scriban.Runtime;
 
 namespace Aion.Util.Data.Templating;

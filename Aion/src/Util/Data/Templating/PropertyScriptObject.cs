@@ -10,7 +10,7 @@ namespace Aion.Util.Data.Templating;
 // core: Get the value of a property from the source object.
 public abstract class PropertyScriptObject() : ScriptObject(StringComparer.OrdinalIgnoreCase)
 {
-    public override bool TryGetValue(TemplateContext context, SourceSpan span, string member, [MaybeNullWhen(true)] out object value)
+    public override bool TryGetValue(TemplateContext? context, SourceSpan span, string member, [MaybeNullWhen(true)] out object value)
     {
         if (!this.TryGetProperty(member, out var property))
         {

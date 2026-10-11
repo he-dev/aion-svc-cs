@@ -1,32 +1,25 @@
 {
   "Enabled": true,
   "Cron": "0/5 * * * * ?",
-  "Parameters": {},
-  "Environment": {},
+  "Logger": "@profile",
   "Steps": [
     {
       "Enabled": true,
       "FileName": "{{ Parameters.NpcExe }}",
-      "Arguments": {
-        "--scheduler": "{{ Scheduler.Name }}",
-        "--profile": "{{ Profile.Name }}",
-        "--workflow": "{{ Workflow.Name }}",
-        "--workflow-mode": "{{ Workflow.Mode }}",
-        "--step": "{{ Step.Index }}",
-        "--step-trace-id": "{{ Step.TraceId }}",
-        "--step-span-id": "{{ Step.SpanId }}",
-        "--step-parent-id": "{{ Step.ParentId }}",
-        "--sleep": 1
-      },
+      "Arguments": [
+        "--scheduler {{ Scheduler.Name }}",
+        "--profile {{ Profile.Name }}",
+        "--workflow {{ Workflow.Name }}",
+        "--workflow-mode {{ Workflow.Mode }}",
+        "--step {{ Step.Index }}",
+        "--step-trace-id {{ Step.TraceId }}",
+        "--step-span-id {{ Step.SpanId }}",
+        "--step-parent-id {{ Step.ParentId }}",
+        "--sleep 1"
+      ],
       "Environment": {
         "NPC_MODE": "lite"
-      },
-      "Logging": {
-        "Preset": "StepFile28Days"
       }
     }
-  ],
-  "Logging": {
-    "Preset": "WorkflowFile28Days"
-  }
+  ]
 }

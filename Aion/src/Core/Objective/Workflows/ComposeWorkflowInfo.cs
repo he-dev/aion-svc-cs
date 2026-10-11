@@ -10,11 +10,11 @@ using Quartz;
 
 namespace Aion.Core.Objective.Workflows;
 
-public class GetWorkflowInfo
+public class ComposeWorkflowInfo
 (
-    ILogger<GetWorkflowInfo> logger,
+    ILogger<ComposeWorkflowInfo> logger,
     FindWorkflows findWorkflows,
-    GetWorkflow getWorkflow
+    ComposeWorkflow composeWorkflow
 )
 {
     public async Task<object> Where(string? workflowPattern)
@@ -24,7 +24,7 @@ public class GetWorkflowInfo
 
         foreach (var workflowPath in findWorkflows.Where(workflowPattern))
         {
-            var workflow = await getWorkflow.For(workflowPath, WorkflowPatch.Empty);
+            var workflow = await composeWorkflow.From(workflowPath, WorkflowPatch.Empty);
             workflows = workflows.Add(workflow);
         }
 
@@ -32,18 +32,18 @@ public class GetWorkflowInfo
         var results =
             from workflow in workflows
             let next = workflow.Trigger.FiresAt(utcNow).Take(3).Select(x => x.ToLocalTime())
-            orderby next.FirstOrDefault(), workflow.Path.Group, workflow.Path.Workflow
+            orderby next.FirstOrDefault(), workflow.Path.Directory, workflow.Path.Workflow
             select new
             {
                 path = workflow.Path,
-                isOn = workflow.Enabled,
+                isOn = !workflow.Disabled,
                 okay = workflow.Okay,
                 cron = ((ICronTrigger)workflow.Trigger).CronExpressionString,
                 next = next,
                 steps = new
                 {
                     workflow.Steps.Count,
-                    enabled = workflow.Steps.Where(s => s.Enabled).Select(s => s.Index)
+                    enabled = workflow.Steps.Where(s => !s.Disabled).Select(s => s.Index)
                 }
             };
 

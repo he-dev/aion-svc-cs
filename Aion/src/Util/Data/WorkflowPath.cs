@@ -4,7 +4,7 @@ namespace Aion.Util.Data;
 
 public record WorkflowPath(string Home, string Workflow)
 {
-    public string Group => Path.GetDirectoryName(Workflow)!;
+    public string Directory => Path.GetDirectoryName(Workflow)!;
 
     public override string ToString() => Path.Join(Home, Workflow);
 

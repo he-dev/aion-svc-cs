@@ -4,11 +4,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Aion.Meta.Logging;
-using Aion.Util.Buzz;
+using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
 using Quartz;
 
-namespace Aion.Util.Data.Scheduler.JobExecutionRules;
+namespace Aion.Util.Buzz.TriggerListeners;
 
 public class WorkflowCannotExecuteDuringDowntime
 (

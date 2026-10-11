@@ -29,7 +29,7 @@ public class TestExecuteWorkflow(TestWebApplication testWebApplication) : IClass
     {
         using var scope = testWebApplication.Services.CreateScope();
 
-        var createWorkflow = scope.ServiceProvider.GetRequiredService<CreateWorkflow>();
+        var createWorkflow = scope.ServiceProvider.GetRequiredService<ComposeWorkflow>();
         var executeWorkflow = scope.ServiceProvider.GetRequiredService<ExecuteWorkflow>();
         var getProfile = scope.ServiceProvider.GetRequiredService<GetProfiles>();
         var findWorkflows = scope.ServiceProvider.GetRequiredService<FindWorkflows>();
@@ -86,7 +86,7 @@ public record ExpectedStepResult(int? ExitCode, StepStatus Status, TimeSpan Dura
         if (StatusError.Match(testCase) is { Success: true } error)
         {
             var exitCode = int.Parse(error.Groups["exitCode"].Value);
-            return new ExpectedStepResult(exitCode, StepStatus.Error, TimeSpan.Zero);
+            return new ExpectedStepResult(exitCode, StepStatus.Fail, TimeSpan.Zero);
         }
 
         if (StatusTimeout.Match(testCase) is { Success: true } timeout)

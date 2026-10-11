@@ -1,17 +1,16 @@
 {
   "Enabled": true,
   "Cron": "0/5 * * * * ?",
-  "Logger": "@default",
+  "Logger": "@profile",
   "Steps": [
     {
       "Enabled": true,
       "FileName": "pwsh",
-      "Arguments": {
-        "-NoProfile": null,
-        "-ExecutionPolicy": "Bypass",
-        "-File": "\"{{ Profile.Path }}\\workflows\\hallo-pwsh.ps1\""
-      },
-      "Environment": {}
+      "Arguments": [
+        "-NoProfile",
+        "-ExecutionPolicy Bypass",
+        "-File \"{{ Profile.Path }}\\workflows\\hallo-pwsh.ps1\""
+      ]
     }
   ]
 }

@@ -6,27 +6,25 @@ namespace Aion.Meta.Quartz;
 
 public static class JobDataMapExtensions
 {
-    public static T Get<T>(this JobDataMap data, string key)
+    public static T Get<T>(this JobDataMap data, string? key = null)
     {
-        if (data.TryGetValue(key, out var value))
-        {
-            if (value is null)
-            {
-                throw new NullReferenceException($"The {nameof(JobDataMap)} contains a null value at {key}.");
-            }
+        key ??= typeof(T).Name;
 
-            return (T)value;
+        if (!data.TryGetValue(key, out var value))
+        {
+            throw new KeyNotFoundException($"The JobDataMap does not contain the key '{key}'.");
         }
 
-        throw new KeyNotFoundException($"The code is trying to get the value for the {key} key, but it does not exist in the {nameof(JobDataMap)}.");
-    }
+        if (value is null)
+        {
+            throw new InvalidOperationException($"The JobDataMap contains the key '{key}', but its value is null.");
+        }
 
+        if (value is not T typedValue)
+        {
+            throw new InvalidCastException($"The JobDataMap value for key '{key}' has type '{value.GetType().FullName}', but type '{typeof(T).FullName}' was expected.");
+        }
 
-    public static T GetEnum<T>(this JobDataMap map) where T : struct, Enum
-    {
-        return
-            map.GetString(typeof(T).Name) is { } value
-                ? Enum.Parse<T>(value)
-                : throw new KeyNotFoundException($"The code is trying to get the value by the enum's type name '{typeof(T).Name}', but such key does not exist in the {nameof(JobDataMap)}.");
+        return typedValue;
     }
 }

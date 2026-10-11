@@ -19,22 +19,21 @@ public class ExecuteWorkflow
 {
     public async Task<StepResultCollection> Now(Workflow workflow)
     {
-        if (workflow is { Mode: WorkflowMode.Cron, Enabled: false })
+        if (workflow is { Mode: WorkflowMode.Cron })
         {
             return [];
         }
 
         using var activity = new Activity(nameof(ExecuteWorkflow)).Start();
-        using var scope = logger.BeginScopeFrom(new
-        {
-            WorkflowPath = workflow.Path,
-            WorkflowMode = workflow.Mode,
-        });
-
         using var registration = mapLogEvent.To(workflow.Logger);
-        using var executionScope = logger.BeginScopeFrom(new { registration.ExecutionId });
+        using var scope = logger.BeginScopeWith
+        (
+            ("aion.workflow.path", workflow.Path.Workflow),
+            ("aion.workflow.mode", workflow.Mode),
+            ("aion.workflow.execution_id", registration.ExecutionId)
+        );
 
-        logger.LogInformation("Executing workflow: '{WorkflowPath}'", workflow.Path);
+        logger.LogInformation("Executing workflow '{aion.workflow.path}'", workflow.Path.Workflow);
 
         // core: Does not filter out disabled steps because we want them logged.
         var stepResults = new StepResultCollection();
@@ -44,35 +43,29 @@ public class ExecuteWorkflow
             {
                 var stepResult = await executeStep.Now(step);
                 stepResults.Add(stepResult);
-
-                if (stepResult.ExitCode is not null and not 0 && step.OnError is { } onError)
-                {
-                    if (onError.Trim().Equals("continue", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // core: Just continue with the next step.
-                    }
-
-                    if (onError.Trim().Equals("break", StringComparison.OrdinalIgnoreCase))
-                    {
-                        logger.LogError("Workflow execution stopped due to a failed step.");
-                        break;
-                    }
-                }
             }
 
             activity.SetStatus(ActivityStatusCode.Ok).Stop();
 
-            logger.LogInformation(
-                "Workflow '{WorkflowPath}' completed in {Duration:N0} ms. Steps: {Total}, Passed: {Passed}, Failed: {Failed}.",
-                workflow.Path, activity.Duration, stepResults.Count, stepResults.Passed, stepResults.Failed
+            logger.LogInformation
+            (
+                "Workflow '{aion.workflow.path}' completed in {aion.workflow.duration_ms:N0} ms. Steps: {aion.workflow.steps.total}, Okay: {aion.workflow.steps.passed}, Fail: {aion.workflow.steps.failed}, Timeout: {aion.workflow.steps.timeout}.",
+                workflow.Path.Workflow,
+                activity.Duration,
+                stepResults.Count,
+                stepResults.Okay,
+                stepResults.Fail,
+                stepResults.Timeout
             );
+
+            logger.LogDebug("OkayRate: '{aion.workflow.okay_rate}', FailRate: {aion.workflow.fail_rate}.", stepResults.OkayRate, stepResults.FailRate);
 
             return stepResults;
         }
         catch (Exception ex)
         {
             activity.SetStatus(ActivityStatusCode.Error).Stop();
-            logger.LogError(ex, "Workflow '{WorkflowPath}' execution failed in {Duration:N0}.", workflow.Path, activity.Duration);
+            logger.LogError(ex, "Workflow '{aion.workflow.path}' execution failed in {aion.workflow.duration_ms:N0}.", workflow.Path.Workflow, activity.Duration);
             throw;
         }
     }
@@ -80,7 +73,9 @@ public class ExecuteWorkflow
 
 public class StepResultCollection : Collection<StepResult>
 {
-    public int Actual => this.Count(result => result.ExitCode is not null);
-    public int Passed => this.Count(result => result.ExitCode == 0);
-    public int Failed => this.Count(result => result.ExitCode is not null && result.ExitCode != 0);
+    public int Okay => this.Count(result => result.Status == StepStatus.Okay);
+    public int Fail => this.Count(result => result.Status is StepStatus.Fail);
+    public int Timeout => this.Count(result => result.Status == StepStatus.Timeout);
+    public int OkayRate => Count == 0 ? 0 : (Okay * 100) / Count;
+    public int FailRate => Count == 0 ? 0 : (Fail * 100) / Count;
 }
