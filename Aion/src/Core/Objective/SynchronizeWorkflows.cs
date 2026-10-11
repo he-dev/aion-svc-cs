@@ -31,9 +31,11 @@ public class SynchronizeWorkflows
             var results = ImmutableList<ScheduleResult>.Empty;
             foreach (var workflowPath in findWorkflows.Where())
             {
-                var workflow = await composeWorkflow.From(workflowPath, WorkflowPatch.Empty);
-                var result = await scheduleWorkflow.Invoke(workflow);
-                results = results.Add(result);
+                if (await composeWorkflow.From(workflowPath, WorkflowPatch.Empty) is { Disabled: false } workflow)
+                {
+                    var result = await scheduleWorkflow.Invoke(workflow);
+                    results = results.Add(result);
+                }
             }
 
             activity.SetStatus(ActivityStatusCode.Ok).Stop();

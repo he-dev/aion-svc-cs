@@ -9,7 +9,6 @@ using Aion.Util.Data;
 using Aion.Util.Data.Scheduler;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Quartz;
 
 namespace Aion.Util.Buzz;
 
@@ -33,6 +32,13 @@ public class ComposeWorkflow
             Variables = (profile.Variables ?? new()).Concat(temp.Variables ?? new()).KeepLast().ToDictionary(),
             Logger = temp.Logger?.Equals("@profile", StringComparison.OrdinalIgnoreCase) == true ? profile.Logger : temp?.Logger
         });
+
+         if (spec is WorkflowSpec.Null)
+         {
+             return new Workflow { Disabled = true, Path = spec.Path };
+         }
+
+        // todo: invalid spec needs to stop here
 
         // meta: Create a partial workflow first so that we can use the Mode property for variables.
         var workflow = new Workflow

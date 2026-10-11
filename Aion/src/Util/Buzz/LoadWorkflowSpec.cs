@@ -16,7 +16,7 @@ public class LoadWorkflowSpec(ILogger<LoadWorkflowSpec> logger, IServiceProvider
         if (!File.Exists(workflowPath))
         {
             logger.LogError("The workflow '{WorkflowPath}' does not exist.", workflowPath);
-            return new WorkflowSpec { Path = workflowPath };
+            return new WorkflowSpec.Null { Path = workflowPath };
         }
 
         try
@@ -36,7 +36,7 @@ public class LoadWorkflowSpec(ILogger<LoadWorkflowSpec> logger, IServiceProvider
             if (spec is null)
             {
                 logger.LogError("The workflow '{aion.workflow.path}' could not be deserialized.", workflowPath.Workflow);
-                return new WorkflowSpec { Path = workflowPath };
+                return new WorkflowSpec.Null { Path = workflowPath };
             }
 
             spec = setDefaults(spec);
@@ -49,7 +49,7 @@ public class LoadWorkflowSpec(ILogger<LoadWorkflowSpec> logger, IServiceProvider
                     logger.LogError(result.ErrorMessage);
                 }
 
-                return new WorkflowSpec { Path = workflowPath };
+                return new WorkflowSpec.Null { Path = workflowPath };
             }
 
             spec = spec with
@@ -69,7 +69,7 @@ public class LoadWorkflowSpec(ILogger<LoadWorkflowSpec> logger, IServiceProvider
                         //logger.LogError("Validation '{aion.workflow.path}[{aion.step.index}]': {aion.step.validation_error}", workflowPath.Workflow, step.Index, result.ErrorMessage);
                     }
 
-                    return new WorkflowSpec { Path = workflowPath };
+                    return new WorkflowSpec.Null { Path = workflowPath };
                 }
             }
 
@@ -78,7 +78,7 @@ public class LoadWorkflowSpec(ILogger<LoadWorkflowSpec> logger, IServiceProvider
         catch (Exception e)
         {
             logger.LogError(e, "An error occurred while deserializing the workflow '{WorkflowPath}'.", workflowPath);
-            return new WorkflowSpec { Path = workflowPath };
+            return new WorkflowSpec.Null { Path = workflowPath };
         }
     }
 }

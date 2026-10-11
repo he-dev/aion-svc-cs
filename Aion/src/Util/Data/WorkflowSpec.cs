@@ -26,8 +26,22 @@ public record WorkflowSpec : IValidatableObject
     [JsonIgnore]
     public WorkflowPath Path { get; init; } = null!;
 
+    public record Null : WorkflowSpec
+    {
+        public Null()
+        {
+            Disabled = true;
+        }
+    }
+
     public IEnumerable<ValidationResult> Validate(ValidationContext context)
     {
+        if (this is Null)
+        {
+            yield return new ValidationResult("The workflow spec failed to load.", [nameof(Variables)]);
+            yield break;
+        }
+
         if (string.IsNullOrWhiteSpace(Cron))
         {
             yield return new ValidationResult("Specify a valid cron expression. Currently it's empty.", [nameof(Cron)]);
