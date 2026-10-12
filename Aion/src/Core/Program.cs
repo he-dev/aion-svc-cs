@@ -47,19 +47,16 @@ builder
     .Host
     .UseSerilog((context, services, configuration) =>
     {
-        var schedulerOptions = services.GetRequiredService<IOptions<SchedulerOptions>>().Value;
+        //var schedulerOptions = services.GetRequiredService<IOptions<SchedulerOptions>>().Value;
 
         // note: Main loggers are filtered in the appsettings.Serilog.json as there is no way to set up these filters here.
         // See https://github.com/serilog/serilog-expressions for all filter expressions.
 
         configuration
             .ReadFrom.Configuration(context.Configuration)
-            .Enrich.With<EnrichesLogEventWithActivity>()
             .Enrich.FromLogContext()
-            //.Enrich.WithProperty("Application", Program.Name)
-            //.Enrich.WithProperty("Version", Program.Version)
-            .Enrich.WithProperty("Instance", schedulerOptions.Name)
-            .Enrich.With(new EnrichesLogEventWithDuration(ts => (int)ts.TotalMilliseconds, "DurationMs"))
+            .Enrich.With<EnrichLogEventWithActivity>()
+            .Enrich.With(new EnrichLogEventWithDuration(ts => (int)ts.TotalMilliseconds))
             .WriteTo.Sink(services.GetRequiredService<MapLogEvent>());
     });
 
@@ -68,13 +65,16 @@ builder.Services.AddSingleton(x => x.GetRequiredService<IHostEnvironment>().Cont
 builder.Services.AddScoped<WorkflowExecutionJob>();
 builder.Services.AddScoped<WorkflowPollingJob>();
 
+builder.Services.AddScoped<ValidateWorkflowProfile>();
+builder.Services.AddScoped<ValidateWorkflowSpec>();
+builder.Services.AddScoped<ValidateWorkflowStepSpec>();
+
 
 // meta: These two services must be singletons because otherwise cannot inject them into ITriggerListener instances.
 builder.Services.AddScoped<FindWorkflows>();
 builder.Services.AddScoped<ComposeWorkflow>();
 builder.Services.AddScoped<LoadWorkflowProfile>();
 builder.Services.AddScoped<LoadLoggingPreset>();
-
 builder.Services.AddScoped<LoadLoggingPreset>();
 builder.Services.AddScoped<LoadWorkflowProfile>();
 builder.Services.AddScoped<LoadWorkflowSpec>();
@@ -88,7 +88,6 @@ builder.Services.AddScoped<WorkflowCannotExecuteDuringDowntime>();
 
 builder.Services.AddQuartz(configure =>
 {
-    // todo: These need to use other matchers.
     configure.AddTriggerListener<WorkflowPollingMustBeEnabled>(WorkflowPollingMustBeEnabled.Matchers);
     //configure.AddTriggerListener<WorkflowCannotExecuteDuringDowntime>(GroupMatcher<TriggerKey>.GroupStartsWith(nameof(WorkflowExecutionJob)));
 

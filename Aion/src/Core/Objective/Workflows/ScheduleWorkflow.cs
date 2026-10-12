@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Aion.Core.Interface.Jobs;
@@ -18,7 +19,7 @@ public class ScheduleWorkflow
     // https://www.quartz-scheduler.net/documentation/quartz-3.x/quick-start.html
 
     // note: This can only succeed, otherwise it throws an exception.
-    public async Task<ScheduleResult> Invoke(Workflow workflow)
+    public async Task<bool> Invoke(Workflow workflow, IProgress<ScheduleChange> progress)
     {
         using var scope = logger.BeginScopeFrom(new { WorkflowPath = workflow.Path });
         var scheduler = await schedulerFactory.GetScheduler();
@@ -28,11 +29,12 @@ public class ScheduleWorkflow
             if (await scheduler.DeleteJob(workflow.Trigger.JobKey))
             {
                 logger.LogInformation("Workflow '{WorkflowPath}' has been unscheduled because it is disabled.", workflow.Path);
-                return new ScheduleResult(workflow.Path, SynchronizationReason.DeleteBecauseDisabled);
+                progress.Report(new ScheduleChange.DeleteBecauseDisabled(workflow.Path));
+                return true;
             }
 
             logger.LogInformation("Workflow '{WorkflowPath}' is not scheduled.", workflow.Path);
-            return new ScheduleResult(workflow.Path, SynchronizationReason.None);
+            return false;
         }
 
         if (workflow.Steps.All(step => step.Disabled))
@@ -40,11 +42,12 @@ public class ScheduleWorkflow
             if (await scheduler.DeleteJob(workflow.Trigger.JobKey))
             {
                 logger.LogInformation("Workflow '{WorkflowPath}' has been unscheduled because it is empty.", workflow.Path);
-                return new ScheduleResult(workflow.Path, SynchronizationReason.DeleteBecauseEmpty);
+                progress.Report(new ScheduleChange.DeleteBecauseEmpty(workflow.Path));
+                return true;
             }
 
             logger.LogInformation("Workflow '{WorkflowPath}' is not scheduled.", workflow.Path);
-            return new ScheduleResult(workflow.Path, SynchronizationReason.None);
+            return false;
         }
 
         var jobDetail =
@@ -56,67 +59,53 @@ public class ScheduleWorkflow
 
         if (workflow.Trigger is ICronTrigger trigger)
         {
-            if (await scheduler.Exists(trigger.JobKey))
+            // core: Compare cron expressions only if the workflow is already scheduled.
+            if (await scheduler.GetTrigger(trigger.Key) is ICronTrigger { CronExpressionString: { } currentCron })
             {
-                // core: Compare cron expressions only if the workflow is already scheduled.
-                if (await scheduler.GetTrigger(trigger.Key) is ICronTrigger { CronExpressionString: { } currentCron })
+                // core: Compare the cron expressions.
+                if (trigger is { CronExpressionString: { } otherCron } && currentCron.Equals(otherCron))
                 {
-                    // core: Compare the cron expressions.
-                    if (trigger is ICronTrigger { CronExpressionString: { } otherCron } && !currentCron.Equals(otherCron))
-                    {
-                        logger.LogDebug("Workflow '{WorkflowPath}' has a different cron expression: '{CurrentCron}' != '{OtherCron}'.", workflow.Path, currentCron, otherCron);
-
-                        if (await scheduler.RescheduleJob(trigger.Key, trigger) is { } next)
-                        {
-                            logger.LogInformation("Workflow '{WorkflowPath}' has been rescheduled to '{Cron}'; next execution at '{Next}'.", workflow.Path, otherCron, next);
-                            return new ScheduleResult(workflow.Path, SynchronizationReason.RescheduleBecauseChanged, next);
-                        }
-                        else
-                        {
-                            logger.LogError("Workflow '{WorkflowPath}' could not be rescheduled.", workflow.Path);
-                        }
-                    }
+                    logger.LogInformation("Workflow '{WorkflowPath}' has the same cron expression: '{Cron}'.", workflow.Path, currentCron);
+                    return false;
                 }
+
+                logger.LogInformation("Workflow '{WorkflowPath}' schedule has changed to: '{CurrentCron}'.", workflow.Path, currentCron);
             }
             else
             {
-                var next = await scheduler.ScheduleJob(jobDetail, trigger);
-                logger.LogInformation("Workflow '{WorkflowPath}' has been scheduled to '{Cron}'; next execution at '{Next}'.", workflow.Path, trigger.CronExpressionString, next);
-                return new ScheduleResult(workflow.Path, SynchronizationReason.ScheduleBecauseNew, next);
+                logger.LogError("Workflow trigger for '{WorkflowPath}' could not be retrieved.", workflow.Path);
+                return false;
             }
-
-            return new ScheduleResult(workflow.Path, SynchronizationReason.None);
         }
-        else
+
+        if (await scheduler.RescheduleJob(workflow.Trigger.Key, workflow.Trigger) is { } next)
         {
-            if (await scheduler.RescheduleJob(workflow.Trigger.Key, workflow.Trigger) is { } next)
-            {
-                logger.LogInformation("Workflow '{WorkflowPath}' will be executed at '{Next}'.", workflow.Path, next);
-                return new ScheduleResult(workflow.Path, SynchronizationReason.RescheduleBecauseChanged, next);
-            }
-            else
-            {
-                logger.LogInformation("Workflow '{WorkflowPath}' will be executed once at '{Next}'.", workflow.Path, workflow.Trigger.NextFireTimeUtc);
-
-                var nextNew = await scheduler.ScheduleJob(jobDetail, workflow.Trigger);
-                return new ScheduleResult(workflow.Path, SynchronizationReason.ScheduleBecauseNew, nextNew);
-            }
+            logger.LogInformation("Workflow '{WorkflowPath}' will be executed at '{Next}'.", workflow.Path, next);
+            progress.Report(new ScheduleChange.RescheduleBecauseChanged(workflow.Path, next));
+            return true;
         }
 
-
-        logger.LogInformation("No workflow synchronization strategy applies to workflow '{WorkflowPath}'.", workflow.Path);
-        //return new SynchronizeWorkflowResult(workflow.Path);
-        return new ScheduleResult(workflow.Path, SynchronizationReason.None);
+        var nextNew = await scheduler.ScheduleJob(jobDetail, workflow.Trigger);
+        logger.LogInformation("Workflow '{WorkflowPath}' will be executed at '{Next}'.", workflow.Path, workflow.Trigger.NextFireTimeUtc);
+        progress.Report(new ScheduleChange.ScheduleBecauseNew(workflow.Path, nextNew));
+        return true;
     }
 }
 
-public record ScheduleResult(WorkflowPath WorkflowPath, SynchronizationReason Reason, DateTimeOffset? Next = null);
-
-public enum SynchronizationReason
+public abstract record ScheduleChange(WorkflowPath WorkflowPath, DateTimeOffset? Next = null)
 {
-    None,
-    DeleteBecauseDisabled,
-    DeleteBecauseEmpty,
-    RescheduleBecauseChanged,
-    ScheduleBecauseNew
+    public string Reason => GetType().Name;
+
+    public record DeleteBecauseDisabled(WorkflowPath WorkflowPath) : ScheduleChange(WorkflowPath);
+
+    public record DeleteBecauseEmpty(WorkflowPath WorkflowPath) : ScheduleChange(WorkflowPath);
+
+    public record ScheduleBecauseNew(WorkflowPath WorkflowPath, DateTimeOffset? Next) : ScheduleChange(WorkflowPath, Next);
+
+    public record RescheduleBecauseChanged(WorkflowPath WorkflowPath, DateTimeOffset? Next) : ScheduleChange(WorkflowPath, Next);
+}
+
+public class ScheduleWorkflowProgress : List<ScheduleChange>, IProgress<ScheduleChange>
+{
+    public void Report(ScheduleChange value) => Add(value);
 }

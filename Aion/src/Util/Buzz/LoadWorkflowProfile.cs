@@ -4,16 +4,21 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Aion.Meta;
+using Aion.Meta.Logging;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
 
 namespace Aion.Util.Buzz;
 
-public class LoadWorkflowProfile(ILogger<LoadWorkflowProfile> logger, IServiceProvider serviceProvider)
+public class LoadWorkflowProfile
+(
+    ILogger<LoadWorkflowProfile> logger,
+    ValidateWorkflowProfile validateWorkflowProfile
+)
 {
     public async Task<WorkflowProfile> Where(WorkflowPath workflowPath)
     {
-        var profile = WorkflowProfile.Dummy;
+        var profile = WorkflowProfile.Empty;
         var file = new FileInfo(workflowPath);
         for (var dir = file.Directory; dir != null; dir = dir.Parent)
         {
@@ -32,10 +37,12 @@ public class LoadWorkflowProfile(ILogger<LoadWorkflowProfile> logger, IServicePr
 
     public async Task<WorkflowProfile> FromFile(string profilePath)
     {
+        using var scope = logger.BeginScopeWith(("aion.profile.path", profilePath));
+
         if (!File.Exists(profilePath))
         {
-            logger.LogError("The workflow profile '{aion.profile.path}' does not exist.", profilePath);
-            return WorkflowProfile.Dummy;
+            logger.LogError("Cannot load workflow-profile from '{aion.profile.path}' because it does not exist.", profilePath);
+            return WorkflowProfile.Empty;
         }
 
         try
@@ -54,19 +61,20 @@ public class LoadWorkflowProfile(ILogger<LoadWorkflowProfile> logger, IServicePr
 
             if (profile is null)
             {
-                logger.LogError("The workflow profile '{aion.profile.path}' could not be deserialized.", profilePath);
-                return WorkflowProfile.Dummy;
+                logger.LogError("File '{aion.profile.path}' is empty. It needs to contain a workflow-profile.", profilePath);
+                return WorkflowProfile.Empty;
             }
 
-            if (ValidateObject.That(profile, serviceProvider) is { Count: > 0 } results)
+            var hasErrors = false;
+            foreach (var profileIssue in validateWorkflowProfile.That(profile))
             {
-                logger.LogError("The workflow profile '{aion.profile.path}' is invalid.", profilePath);
-                foreach (var result in results)
-                {
-                    logger.LogError(result.ErrorMessage);
-                }
+                logger.LogError(profileIssue);
+                hasErrors = true;
+            }
 
-                return WorkflowProfile.Dummy;
+            if (hasErrors)
+            {
+                return WorkflowProfile.Empty;
             }
 
             return profile;
@@ -74,7 +82,7 @@ public class LoadWorkflowProfile(ILogger<LoadWorkflowProfile> logger, IServicePr
         catch (Exception e)
         {
             logger.LogError(e, "An error occurred while deserializing the workflow profile '{aion.profile.path}'.", profilePath);
-            return WorkflowProfile.Dummy;
+            return WorkflowProfile.Empty;
         }
     }
 }

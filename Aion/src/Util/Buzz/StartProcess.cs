@@ -12,7 +12,7 @@ public class StartProcess(ILogger<StartProcess> logger)
     // note: Not using external cancellation as this app does not support such a scenario.
     public async Task<int> Now
     (
-        string file,
+        string fileName,
         TimeSpan timeout,
         Action<ProcessStartInfo>? customizeProcessStartInfo = null,
         Action<string>? logStdErr = null,
@@ -26,7 +26,7 @@ public class StartProcess(ILogger<StartProcess> logger)
             // meta: Set reasonable defaults and let the caller customize the rest.
             StartInfo = new ProcessStartInfo
             {
-                FileName = file,
+                FileName = fileName,
                 CreateNoWindow = true,
                 UseShellExecute = false,
                 RedirectStandardInput = true,
@@ -55,10 +55,11 @@ public class StartProcess(ILogger<StartProcess> logger)
             if (e.Data is not null) logStdErr?.Invoke(e.Data);
         };
 
+        var commandLine = $"{process.StartInfo.FileName} {process.StartInfo.Arguments}".Trim();
+
         try
         {
-            logger.LogInformation("Executing file: '{File}'.", file);
-            logger.LogInformation("With arguments: '{Args}'.", process.StartInfo.Arguments);
+            logger.LogInformation("Executing '{aion.workflow.step.command_line}'.", commandLine);
 
             if (process.Start())
             {
@@ -85,8 +86,8 @@ public class StartProcess(ILogger<StartProcess> logger)
 
                 switch (process.ExitCode)
                 {
-                    case 0: logger.LogInformation("Process completed in {Elapsed:N0} ms.", stopwatch.Elapsed.TotalMilliseconds); break;
-                    default: logger.LogError("Process failed after {Elapsed:N0} ms with code {ExitCode}.", stopwatch.Elapsed.TotalMilliseconds, process.ExitCode); break;
+                    case 0: logger.LogInformation("Process '{aion.workflow.step.command_line}' completed in {aion.workflow.step.duration_ms:N0} ms.", commandLine, stopwatch.Elapsed.TotalMilliseconds); break;
+                    default: logger.LogError("Process '{aion.workflow.step.command_line}' failed after {aion.workflow.step.duration_ms:N0} ms with exit-code {aion.workflow.step.exit_code}.", commandLine, stopwatch.Elapsed.TotalMilliseconds, process.ExitCode); break;
                 }
 
                 return process.ExitCode;
@@ -97,22 +98,22 @@ public class StartProcess(ILogger<StartProcess> logger)
         // core: This exception is thrown when the timeout is reached.
         catch (OperationCanceledException)
         {
-            logger.LogWarning("Process timed out after {Elapsed:N0} ms.", stopwatch.Elapsed.TotalMilliseconds);
+            logger.LogWarning("Process ''{aion.workflow.step.command_line}'' timed out after {aion.workflow.step.duration_ms:N0} ms.", commandLine, stopwatch.Elapsed.TotalMilliseconds);
             try
             {
                 if (!process.HasExited)
                 {
                     process.Kill(entireProcessTree: true);
-                    logger.LogWarning("Process was killed.");
+                    logger.LogWarning("Process '{aion.workflow.step.command_line}' was killed.", commandLine);
                 }
             }
             catch (InvalidOperationException)
             {
-                logger.LogInformation("Process had already exited.");
+                logger.LogInformation("Process '{aion.workflow.step.command_line}' had already exited.", commandLine);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Unable to kill process.");
+                logger.LogError(ex, "Unable to kill '{aion.workflow.step.command_line}'.", commandLine);
             }
 
             throw new ProcessTimeout();
@@ -135,14 +136,14 @@ public class StartProcess(ILogger<StartProcess> logger)
             stdStreamCompletion.TrySetResult(true);
 
             // core: Allow the user to use this property in the message template.
-            logger.LogTrace("EOF after {Duration} ms.", stopwatch.Elapsed.TotalMilliseconds);
+            logger.LogTrace("EOF after {aion.workflow.step.duration_ms:N0} ms.", stopwatch.Elapsed.TotalMilliseconds);
         }
         else
         {
             switch (consoleStreamType)
             {
-                case ConsoleStreamType.StdOut: logger.LogInformation("{Line}", e.Data); break;
-                case ConsoleStreamType.StdErr: logger.LogError("{Line}", e.Data); break;
+                case ConsoleStreamType.StdOut: logger.LogInformation(e.Data); break;
+                case ConsoleStreamType.StdErr: logger.LogError(e.Data); break;
             }
         }
     }

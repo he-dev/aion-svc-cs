@@ -38,8 +38,6 @@ public class ComposeWorkflow
              return new Workflow { Disabled = true, Path = spec.Path };
          }
 
-        // todo: invalid spec needs to stop here
-
         // meta: Create a partial workflow first so that we can use the Mode property for variables.
         var workflow = new Workflow
         {

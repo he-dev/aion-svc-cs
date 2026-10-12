@@ -16,7 +16,7 @@ namespace Aion.Tests.Core.Services.Commands;
 public class TestScheduleWorkflow(TestWebApplication testWebApplication) : IClassFixture<TestWebApplication>
 {
     // core: Synchronizes each specified workflow and returns their results.
-    private async IAsyncEnumerable<ScheduleResult> SynchronizeWorkflow(params WorkflowSpec[] workflows)
+    private async IAsyncEnumerable<ScheduleChange> SynchronizeWorkflow(params WorkflowSpec[] workflows)
     {
         using var scope = testWebApplication.Services.CreateScope();
         var scheduleWorkflow = scope.ServiceProvider.GetRequiredService<ScheduleWorkflow>();

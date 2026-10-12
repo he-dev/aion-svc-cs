@@ -30,6 +30,8 @@ public static class WorkflowsEndpoint
         return Results.Ok(workflows);
     }
 
+    // todo: use the return value of ScheduleWorkflow.Invoke.
+
     private static async Task<IResult> StartNow([AsParameters] StartRequest parameters, [FromBody] WorkflowQuery body)
     {
         var schedules = new List<object>();
@@ -37,7 +39,8 @@ public static class WorkflowsEndpoint
         {
             var trigger = CreateWorkflowTrigger.Simple(workflowPath, DateTimeOffset.UtcNow);
             var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
-            var schedule = await parameters.ScheduleWorkflow.Invoke(workflow);
+            var progress = new ScheduleWorkflowProgress();
+            var schedule = await parameters.ScheduleWorkflow.Invoke(workflow, progress);
             schedules.Add(new { workflow.Path.Workflow, schedule });
         }
 
@@ -51,7 +54,8 @@ public static class WorkflowsEndpoint
         {
             var trigger = CreateWorkflowTrigger.Simple(workflowPath, DateTimeOffset.UtcNow + body.Wait);
             var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
-            var schedule = await parameters.ScheduleWorkflow.Invoke(workflow);
+            var progress = new ScheduleWorkflowProgress();
+            var schedule = await parameters.ScheduleWorkflow.Invoke(workflow, progress);
             schedules.Add(new { workflow.Path.Workflow, schedule });
         }
 
@@ -65,7 +69,8 @@ public static class WorkflowsEndpoint
         {
             var trigger = CreateWorkflowTrigger.Simple(workflowPath, body.WhenUtc);
             var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
-            var schedule = await parameters.ScheduleWorkflow.Invoke(workflow);
+            var progress = new ScheduleWorkflowProgress();
+            var schedule = await parameters.ScheduleWorkflow.Invoke(workflow, progress);
             schedules.Add(new { workflow.Path.Workflow, schedule });
         }
 

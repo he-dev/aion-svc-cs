@@ -21,27 +21,26 @@ public class SynchronizeWorkflows
 )
 {
     // meta: Cannot be IAsyncEnumerable because of try/catch.
-    public async Task<IImmutableList<ScheduleResult>> Invoke()
+    public async Task<IImmutableList<ScheduleChange>> Invoke()
     {
         using var activity = new Activity(nameof(SynchronizeWorkflows)).Start();
         logger.LogInformation("Synchronizing workflows in '{SchedulerHome}'.", schedulerOptions.Value.Home);
 
         try
         {
-            var results = ImmutableList<ScheduleResult>.Empty;
+            var progress = new ScheduleWorkflowProgress();
             foreach (var workflowPath in findWorkflows.Where())
             {
                 if (await composeWorkflow.From(workflowPath, WorkflowPatch.Empty) is { Disabled: false } workflow)
                 {
-                    var result = await scheduleWorkflow.Invoke(workflow);
-                    results = results.Add(result);
+                    await scheduleWorkflow.Invoke(workflow, progress);
                 }
             }
 
             activity.SetStatus(ActivityStatusCode.Ok).Stop();
             logger.LogInformation("Synchronization of '{SchedulerHome}' finished in {Duration:N0}.", schedulerOptions.Value.Home, activity.Duration);
 
-            return results;
+            return [.. progress];
         }
         catch (Exception ex)
         {
@@ -51,3 +50,4 @@ public class SynchronizeWorkflows
         }
     }
 }
+

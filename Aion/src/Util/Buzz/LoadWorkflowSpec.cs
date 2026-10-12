@@ -4,15 +4,23 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using Aion.Meta.Logging;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
 
 namespace Aion.Util.Buzz;
 
-public class LoadWorkflowSpec(ILogger<LoadWorkflowSpec> logger, IServiceProvider serviceProvider)
+public class LoadWorkflowSpec
+(
+    ILogger<LoadWorkflowSpec> logger,
+    ValidateWorkflowSpec validateWorkflowSpec,
+    ValidateWorkflowStepSpec validateWorkflowStepSpec
+)
 {
     public async Task<WorkflowSpec> FromFile(WorkflowPath workflowPath, Func<WorkflowSpec, WorkflowSpec> setDefaults)
     {
+        using var scope = logger.BeginScopeWith(("aion.workflow.path", workflowPath.Workflow));
+
         if (!File.Exists(workflowPath))
         {
             logger.LogError("The workflow '{WorkflowPath}' does not exist.", workflowPath);
@@ -41,14 +49,15 @@ public class LoadWorkflowSpec(ILogger<LoadWorkflowSpec> logger, IServiceProvider
 
             spec = setDefaults(spec);
 
-            if (ValidateObject.That(spec, serviceProvider) is { Count: > 0 } results)
+            var hasErrors = false;
+            foreach (var workflowIssue in validateWorkflowSpec.That(spec))
             {
-                logger.LogError("The workflow '{aion.workflow.path}' is invalid.", workflowPath.Workflow);
-                foreach (var result in results)
-                {
-                    logger.LogError(result.ErrorMessage);
-                }
+                logger.LogError(workflowIssue);
+                hasErrors = true;
+            }
 
+            if (hasErrors)
+            {
                 return new WorkflowSpec.Null { Path = workflowPath };
             }
 
@@ -58,19 +67,15 @@ public class LoadWorkflowSpec(ILogger<LoadWorkflowSpec> logger, IServiceProvider
                 Steps = [.. spec.Steps.Select((step, index) => step with { Index = index })]
             };
 
-            foreach (var step in spec.Steps)
+            foreach (var stepIssue in spec.Steps.SelectMany(validateWorkflowStepSpec.That))
             {
-                if (ValidateObject.That(step) is { Count: > 0 } stepResults)
-                {
-                    logger.LogError("The workflow step '{aion.workflow.path}[{aion.step.index}]' is invalid.", workflowPath.Workflow, step.Index);
-                    foreach (var result in stepResults)
-                    {
-                        logger.LogError(result.ErrorMessage);
-                        //logger.LogError("Validation '{aion.workflow.path}[{aion.step.index}]': {aion.step.validation_error}", workflowPath.Workflow, step.Index, result.ErrorMessage);
-                    }
+                logger.LogError(stepIssue);
+                hasErrors = true;
+            }
 
-                    return new WorkflowSpec.Null { Path = workflowPath };
-                }
+            if (hasErrors)
+            {
+                return new WorkflowSpec.Null { Path = workflowPath };
             }
 
             return spec;

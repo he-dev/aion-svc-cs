@@ -5,7 +5,7 @@ using Serilog.Events;
 namespace Aion.Meta.Serilog.Enriching;
 
 // util: Enriches log events by converting the TimeSpan into the precision specified by the select parameter.
-public class EnrichesLogEventWithDuration(Func<TimeSpan, int> selectsTimeComponent, string propertyName = "Duration") : ILogEventEnricher
+public class EnrichLogEventWithDuration(Func<TimeSpan, int> selectsTimeComponent, string propertyName = "duration_ms") : ILogEventEnricher
 {
     public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
     {

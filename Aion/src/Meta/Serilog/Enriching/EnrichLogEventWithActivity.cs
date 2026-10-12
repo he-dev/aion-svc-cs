@@ -4,7 +4,7 @@ using Serilog.Events;
 
 namespace Aion.Meta.Serilog.Enriching;
 
-public class EnrichesLogEventWithActivity : ILogEventEnricher
+public class EnrichLogEventWithActivity : ILogEventEnricher
 {
     public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
     {
