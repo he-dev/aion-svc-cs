@@ -13,6 +13,7 @@ using Microsoft.Extensions.Hosting;
 using Quartz;
 using Quartz.Impl;
 using Quartz.Spi;
+using Serilog;
 
 namespace Aion;
 
@@ -34,6 +35,13 @@ internal static class Program
                         .SetBasePath(Directory.GetCurrentDirectory())
                         //.AddJsonFile("appsettings.json", optional: false)
                         .AddEnvironmentVariables();
+                })
+                .UseSerilog((context, services, logger) =>
+                {
+                    logger
+                        .ReadFrom.Configuration(context.Configuration)
+                        .ReadFrom.Services(services)
+                        .Enrich.FromLogContext();
                 })
                 .UseServiceProviderFactory(new AutofacServiceProviderFactory())
                 .ConfigureServices((context, services) =>

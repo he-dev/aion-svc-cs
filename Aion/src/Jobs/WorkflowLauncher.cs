@@ -43,7 +43,7 @@ internal class WorkflowLauncher : IJob
     // Executes job's workflow.
     private async Task Execute(Workflow workflow, CancellationToken cancellationToken)
     {
-        foreach (var step in workflow.Steps.Where(s => s.Enabled))
+        foreach (var (step, i) in workflow.Steps.Select((x, i) => (x, i)).Where(s => s.x.Enabled))
         {
             //await Execute(step, cancellationToken);
             var result = await ProcessHelper.StartAsync
@@ -56,12 +56,16 @@ internal class WorkflowLauncher : IJob
 
             if (result.Success)
             {
-                _logger.LogInformation("Step '{Name}' successfully finished:{NewLine} {Output}", step.Name, Environment.NewLine, result.Output);
+                _logger.LogInformation("Workflow's '{Workflow}' step [{Name}] successfully finished.", workflow.Name, step.Name ?? i.ToString());
+                if (!string.IsNullOrEmpty(result.Output))
+                {
+                    _logger.LogInformation("Workflow's '{Workflow}' step [{Name}] output:{NewLine}{Output}", workflow.Name, step.Name ?? i.ToString(), Environment.NewLine, result.Output);
+                }
             }
             else
             {
-                _logger.LogError("Step '{Name}' failed with error code {ExitCode}:{NewLine} {Error}", step.Name, result.ExitCode, Environment.NewLine, result.Error);
-                _logger.LogError("Exception:{NewLine} {Exception}", Environment.NewLine, result.Exception);
+                _logger.LogError("Workflow's '{Workflow}' step [{Name}] failed with error code [{ExitCode}:{NewLine}]: {Error}", workflow.Name, step.Name ?? i.ToString(), result.ExitCode, Environment.NewLine, result.Error);
+                _logger.LogError(result.Exception, "Exception:{NewLine} {Exception}", Environment.NewLine, result.Exception.Message);
 
                 if (step.OnError == OnError.Break)
                 {

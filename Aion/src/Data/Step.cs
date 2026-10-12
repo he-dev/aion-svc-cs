@@ -10,7 +10,7 @@ namespace Aion.Data;
 [UsedImplicitly]
 public class Step
 {
-    public string Name { get; set; } = null!;
+    public string? Name { get; set; } = null!;
     
     [DefaultValue(true)]
     public bool Enabled { get; set; }
