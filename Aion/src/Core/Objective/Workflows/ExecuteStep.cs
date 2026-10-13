@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Aion.Meta;
 using Aion.Meta.Logging;
@@ -15,101 +17,61 @@ public class ExecuteStep
     StartProcess startProcess
 )
 {
-    public async Task<StepResult> Now(Workflow.Step step)
+    public async Task<ExecuteStepResult> Now
+    (
+        Workflow.Step step,
+        CancellationToken cancellationToken = default
+    )
     {
-        if (step.Disabled)
-        {
-            return new StepResult { Index = step.Index };
-        }
-
         // meta: Setup logging contexts.
         using var activity = new Activity(nameof(ExecuteStep)).Start();
-        using var scope = logger.BeginScopeWith(("aion.step.index", step.Index), ("aion.step.name", step.Name));
+        using var scope = logger.BeginScopeWith(("aion.workflow.step.index", step.Index), ("aion.workflow.step.name", step.Name));
 
         try
         {
-            logger.LogInformation("Executing step {aion.step.index} [{aion.step.name}]", step.Index, step.Name);
-            var exitCode = await startProcess.Now
+            logger.LogInformation("Executing step {aion.workflow.step.index}.", step.Index);
+            var startProcessResult = await startProcess.Now
             (
                 step.FileName,
+                step.Arguments().Join(" "),
+                step.WorkingDirectory,
+                step.Environment.ToDictionary(),
                 step.Timeout,
-                psi =>
-                {
-                    psi.Arguments = step.Arguments().Join(" ");
-                    psi.WorkingDirectory = step.WorkingDirectory;
-                    foreach (var (name, value) in step.Environment)
-                    {
-                        psi.Environment[name] = value;
-                    }
-                }
+                cancellationToken
             );
 
-            switch (exitCode)
+            switch (startProcessResult.ExitCode)
             {
                 case 0:
                     activity.SetStatus(ActivityStatusCode.Ok).Stop();
-                    logger.LogInformation("Step {aion.step.index} [{aion.step.name}] completed in {aion.step.duration_ms:N0} ms.", step.Index, step.Name, activity.Duration);
+                    logger.LogInformation("Step {aion.workflow.step.index} completed in {aion.workflow.step.duration_ms:N0} ms.", step.Index, activity.Duration);
                     break;
                 default:
                     activity.SetStatus(ActivityStatusCode.Error).Stop();
-                    logger.LogError("Step {aion.step.index} [{aion.step.name}] failed after {aion.step.duration_ms:N0} ms with exit code {aion.step.exit_code}.", step.Index, step.Name, activity.Duration, exitCode);
+                    logger.LogError("Step {aion.workflow.step.index} failed after {aion.workflow.step.duration_ms:N0} ms with exit code {aion.workflow.step.exit_code}.", step.Index, activity.Duration, startProcessResult.ExitCode);
                     break;
             }
 
-            return new StepResult
+            return new ExecuteStepResult(step.Index)
             {
-                Index = step.Index,
-                ExitCode = exitCode,
-                Duration = activity.Duration,
+                Process = startProcessResult
             };
+        }
+        catch (OperationCanceledException)
+        {
+            // core: Let the workflow handle the cancellation.
+            throw;
         }
         catch (Exception ex)
         {
             activity.SetStatus(ActivityStatusCode.Error).Stop();
-            if (ex is ProcessTimeout)
-            {
-                logger.LogWarning("Step {aion.step.index} [{aion.step.name}] was cancelled after {aion.step.duration_ms:N0} ms by timeout.", step.Index, step.Name, activity.Duration);
-            }
-            else
-            {
-                logger.LogError(ex, "Step {aion.step.index} [{aion.step.name}] failed after {aion.step.duration_ms:N0} ms with an exception.", step.Index, step.Name, activity.Duration);
-            }
-
-            return new StepResult
-            {
-                Index = step.Index,
-                Exception = ex,
-                Duration = activity.Duration,
-            };
+            logger.LogError(ex, "Step {aion.step.index} failed after {aion.step.duration_ms:N0} ms with an exception.", step.Index, activity.Duration);
+            return new ExecuteStepResult(step.Index);
         }
     }
 }
 
-// meta: Makes testing easier.
-public record StepResult
+public record ExecuteStepResult(int StepIndex)
 {
-    public required int Index { get; init; }
-    public int? ExitCode { get; init; }
-    public Exception? Exception { get; init; }
-    public TimeSpan Duration { get; init; }
-
-    public StepStatus Status => Exception switch
-    {
-        ProcessTimeout => StepStatus.Timeout,
-        not null => StepStatus.Fail,
-        _ => ExitCode switch
-        {
-            0 => StepStatus.Okay,
-            null => StepStatus.None,
-            _ => StepStatus.Fail
-        }
-    };
-}
-
-public enum StepStatus
-{
-    None,
-    Okay,
-    Fail,
-    Timeout,
+    public StartProcessResult? Process { get; init; }
 }

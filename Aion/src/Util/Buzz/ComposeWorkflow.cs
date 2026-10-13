@@ -26,7 +26,7 @@ public class ComposeWorkflow
         using var scope = logger.BeginScopeWith(("aion.workflow.path", workflowPath.Workflow));
         logger.LogTrace("Composing workflow '{aion.workflow.path}'.", workflowPath.Workflow);
 
-        var profile = await loadWorkflowProfile.FromFile(workflowPath);
+        var profile = await loadWorkflowProfile.Where(workflowPath);
         var spec = await loadWorkflowSpec.FromFile(workflowPath, temp => temp with
         {
             Variables = (profile.Variables ?? new()).Concat(temp.Variables ?? new()).KeepLast().ToDictionary(),

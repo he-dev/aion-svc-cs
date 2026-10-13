@@ -34,20 +34,21 @@ public class WorkflowExecutionJob
             WorkflowMode = workflowMode,
         });
 
-        logger.LogDebug("Executing '{aion.job.group}:{aion.job.name}'.",  context.JobDetail.Key.Group, context.JobDetail.Key.Name);
+        logger.LogDebug("Executing job '{aion.job.group}:{aion.job.name}'.", context.JobDetail.Key.Group, context.JobDetail.Key.Name);
 
         try
         {
+            var progress = new ExecuteWorkflowProgress();
             var workflow = await composeWorkflow.From(new WorkflowPath(schedulerOptions.Value.Home, workflowPath), WorkflowPatch.Empty);
-            var stepResults = await executeWorkflow.Now(workflow);
-            if (workflowMode == WorkflowMode.Cron && !stepResults.Any())
-            {
-                logger.LogWarning("Unscheduling workflow '{aion.workflow.path}' because it does not do anything.", workflowPath.Workflow);
-                await context.Scheduler.DeleteJob(context.JobDetail.Key, cancellationToken);
-            }
+            await executeWorkflow.Now(workflow, progress, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogError("Cancelled job '{aion.job.group}:{aion.job.name}'.", context.JobDetail.Key.Group, context.JobDetail.Key.Name);
         }
         catch (Exception ex)
         {
+            // note: This should never happen.
             logger.LogError(ex, "Workflow '{aion.workflow.path}' failed.", workflowPath.Workflow);
             throw new JobExecutionException(ex);
         }
