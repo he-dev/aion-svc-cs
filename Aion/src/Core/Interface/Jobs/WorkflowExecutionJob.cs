@@ -33,7 +33,7 @@ public class WorkflowExecutionJob
             WorkflowMode = workflowMode,
         });
 
-        logger.LogDebug("Executing job '{aion.job.group}:{aion.job.name}'.", context.JobDetail.Key.Group, context.JobDetail.Key.Name);
+        logger.Buzz.LogDebug("Executing job '{aion.job.group}:{aion.job.name}'.", context.JobDetail.Key.Group, context.JobDetail.Key.Name);
 
         try
         {
@@ -43,12 +43,12 @@ public class WorkflowExecutionJob
         }
         catch (OperationCanceledException)
         {
-            logger.LogError("Cancelled job '{aion.job.group}:{aion.job.name}'.", context.JobDetail.Key.Group, context.JobDetail.Key.Name);
+            logger.Buzz.LogError("Cancelled job '{aion.job.group}:{aion.job.name}'.", context.JobDetail.Key.Group, context.JobDetail.Key.Name);
         }
         catch (Exception ex)
         {
             // note: This should never happen.
-            logger.LogError(ex, "Workflow '{aion.workflow.path}' failed.", workflowPath.Workflow);
+            logger.Buzz.LogError(ex, "Workflow '{aion.workflow.path}' failed.", workflowPath.Workflow);
             throw new JobExecutionException(ex);
         }
     }

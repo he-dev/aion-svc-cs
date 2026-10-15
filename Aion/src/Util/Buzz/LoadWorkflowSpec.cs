@@ -23,7 +23,7 @@ public class LoadWorkflowSpec
 
         if (!File.Exists(workflowPath))
         {
-            logger.Buzz.Noop.LogError("The workflow '{WorkflowPath}' does not exist.", workflowPath);
+            logger.Buzz.Noop.LogError("The workflow '{aion.workflow.path}' does not exist.", workflowPath.Workflow);
             return new WorkflowSpec.Null { Path = workflowPath };
         }
 
