@@ -34,7 +34,7 @@ public class ExecuteWorkflow
             ("aion.workflow.execution_id", registration.ExecutionId)
         );
 
-        logger.LogInformation("Executing workflow '{aion.workflow.path}'", workflow.Path.Workflow);
+        logger.Core.Zero.LogInformation("Executing workflow '{aion.workflow.path}'", workflow.Path.Workflow);
 
         try
         {
@@ -46,7 +46,7 @@ public class ExecuteWorkflow
 
             activity.SetStatus(ActivityStatusCode.Ok).Stop();
 
-            logger.LogInformation
+            logger.Core.Okay.LogInformation
             (
                 "Workflow '{aion.workflow.path}' completed in {aion.workflow.duration_ms:N0} ms. Steps: {aion.workflow.steps.total}, Okay: {aion.workflow.steps.passed}, Fail: {aion.workflow.steps.failed}, Timeout: {aion.workflow.steps.timeout}.",
                 workflow.Path.Workflow,
@@ -57,19 +57,19 @@ public class ExecuteWorkflow
                 progress.TimedOut
             );
 
-            logger.LogDebug("OkayRate: '{aion.workflow.okay_rate}', FailRate: {aion.workflow.fail_rate}.", progress.OkayRate, progress.FailRate);
+            logger.Buzz.LogInformation("OkayRate: '{aion.workflow.okay_rate}', FailRate: {aion.workflow.fail_rate}.", progress.OkayRate, progress.FailRate);
 
             return true;
         }
         catch(OperationCanceledException)
         {
-            logger.LogError("Workflow '{aion.workflow.path}' execution was canceled in {aion.workflow.duration_ms:N0}.", workflow.Path.Workflow, activity.Duration);
+            logger.Core.Fail.LogError("Workflow '{aion.workflow.path}' execution was canceled in {aion.workflow.duration_ms:N0}.", workflow.Path.Workflow, activity.Duration);
             return false;
         }
         catch (Exception ex)
         {
             activity.SetStatus(ActivityStatusCode.Error).Stop();
-            logger.LogError(ex, "Workflow '{aion.workflow.path}' execution failed in {aion.workflow.duration_ms:N0}.", workflow.Path.Workflow, activity.Duration);
+            logger.Core.Fail.LogError(ex, "Workflow '{aion.workflow.path}' execution failed in {aion.workflow.duration_ms:N0}.", workflow.Path.Workflow, activity.Duration);
             return false;
         }
     }

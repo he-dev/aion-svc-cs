@@ -23,7 +23,7 @@ public class LoadWorkflowSpec
 
         if (!File.Exists(workflowPath))
         {
-            logger.LogError("The workflow '{WorkflowPath}' does not exist.", workflowPath);
+            logger.Buzz.Noop.LogError("The workflow '{WorkflowPath}' does not exist.", workflowPath);
             return new WorkflowSpec.Null { Path = workflowPath };
         }
 
@@ -43,7 +43,7 @@ public class LoadWorkflowSpec
 
             if (spec is null)
             {
-                logger.LogError("The workflow '{aion.workflow.path}' could not be deserialized.", workflowPath.Workflow);
+                logger.Buzz.Fail.LogError("The workflow '{aion.workflow.path}' could not be deserialized.", workflowPath.Workflow);
                 return new WorkflowSpec.Null { Path = workflowPath };
             }
 
@@ -52,7 +52,7 @@ public class LoadWorkflowSpec
             var hasErrors = false;
             foreach (var workflowIssue in validateWorkflowSpec.That(spec))
             {
-                logger.LogError(workflowIssue);
+                logger.Buzz.Fail.LogError("{aion.workflow.issue}", workflowIssue);
                 hasErrors = true;
             }
 
