@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Aion.Meta.Logging;
+using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
 using Quartz;

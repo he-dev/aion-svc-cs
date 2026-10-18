@@ -252,3 +252,6 @@ paket-files/
 *.sln.iml
 
 nlog.xsd
+
+# Aion
+*.lock

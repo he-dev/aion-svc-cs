@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Aion.Core.Objective;
 using Aion.Core.Objective.Workflows;
 using Aion.Util.Buzz;
 using Aion.Util.Data;
@@ -24,9 +23,9 @@ public static class WorkflowsEndpoint
         workflows.MapPost("workflows:sync", Synchronize);
     }
 
-    private static async Task<IResult> GetWorkflows(ComposeWorkflowInfo composeWorkflowInfo, [FromBody] WorkflowQuery? body)
+    private static async Task<IResult> GetWorkflows(ComposeWorkflowOverview composeWorkflowOverview, [FromBody] WorkflowQuery? body)
     {
-        var workflows = await composeWorkflowInfo.Where(body?.Pattern);
+        var workflows = await composeWorkflowOverview.Where(body?.Pattern);
         return Results.Ok(workflows);
     }
 
@@ -34,53 +33,66 @@ public static class WorkflowsEndpoint
 
     private static async Task<IResult> StartNow([AsParameters] StartRequest parameters, [FromBody] WorkflowQuery body)
     {
-        var schedules = new List<object>();
+        var changes = new List<object>();
         foreach (var workflowPath in parameters.FindWorkflows.Where(body.Pattern))
         {
             var trigger = CreateWorkflowTrigger.Simple(workflowPath, DateTimeOffset.UtcNow);
             var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
-            var progress = new ScheduleWorkflowProgress();
-            var schedule = await parameters.ScheduleWorkflow.Invoke(workflow, progress);
-            schedules.Add(new { workflow.Path.Workflow, schedule });
+            if (workflow is Workflow.Okay okay)
+            {
+                var change = await parameters.ScheduleWorkflow.At<Workflow.Okay>(okay.Trigger);
+                changes.Add(new { okay.Spec.Path.Workflow, change });
+            }
         }
 
-        return Results.Accepted($"/api/workflows", new { schedules });
+        return Results.Accepted($"/api/workflows", new { changes });
     }
 
     private static async Task<IResult> StartIn([AsParameters] StartRequest parameters, [FromBody] WorkflowStartInBody body)
     {
-        var schedules = new List<object>();
+        var changes = new List<object>();
         foreach (var workflowPath in parameters.FindWorkflows.Where(body.Pattern))
         {
             var trigger = CreateWorkflowTrigger.Simple(workflowPath, DateTimeOffset.UtcNow + body.Wait);
             var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
-            var progress = new ScheduleWorkflowProgress();
-            var schedule = await parameters.ScheduleWorkflow.Invoke(workflow, progress);
-            schedules.Add(new { workflow.Path.Workflow, schedule });
+            if (workflow is Workflow.Okay okay)
+            {
+                var change = await parameters.ScheduleWorkflow.At<Workflow.Okay>(okay.Trigger);
+                changes.Add(new { okay.Spec.Path.Workflow, change });
+            }
         }
 
-        return Results.Accepted($"/api/workflows", new { schedules });
+        return Results.Accepted($"/api/workflows", new { changes });
     }
 
     private static async Task<IResult> StartAt([AsParameters] StartRequest parameters, [FromBody] WorkflowStartAtBody body)
     {
-        var schedules = new List<object>();
+        var changes = new List<object>();
         foreach (var workflowPath in parameters.FindWorkflows.Where(body.Pattern))
         {
             var trigger = CreateWorkflowTrigger.Simple(workflowPath, body.WhenUtc);
             var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
-            var progress = new ScheduleWorkflowProgress();
-            var schedule = await parameters.ScheduleWorkflow.Invoke(workflow, progress);
-            schedules.Add(new { workflow.Path.Workflow, schedule });
+            if (workflow is Workflow.Okay okay)
+            {
+                var change = await parameters.ScheduleWorkflow.At<Workflow.Okay>(okay.Trigger);
+                changes.Add(new { okay.Spec.Path.Workflow, change });
+            }
         }
 
-        return Results.Accepted($"/api/workflows", new { schedules });
+        return Results.Accepted($"/api/workflows", new { schedules = changes });
     }
 
-    private static async Task<IResult> Synchronize(SynchronizeWorkflows synchronizeWorkflows)
+    private static async Task<IResult> Synchronize(ScheduleWorkflow scheduleWorkflow)
     {
-        var syncResults = await synchronizeWorkflows.Invoke();
-        return Results.Ok(syncResults);
+        var progress = new SynchronizeWorkflowProgress();
+        if (await scheduleWorkflow.Directory())
+        {
+            return Results.Ok(progress);
+        }
+        else
+        {
+            return Results.NoContent();
+        }
     }
 }
 

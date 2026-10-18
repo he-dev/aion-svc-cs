@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Aion.Meta.Logging;
+using Aion.Meta.Logging.Wiretap;
 using Microsoft.Extensions.Logging;
 
 namespace Aion.Util.Buzz;
@@ -68,7 +68,7 @@ public class StartProcess(ILogger<StartProcess> logger)
 
         try
         {
-            logger.Buzz.LogInformation("Executing '{aion.workflow.step.command_line}'.", commandLine);
+            logger.Buzz.Okay.LogInformation("Executing '{aion.workflow.step.command_line}'.", commandLine);
 
             if (process.Start())
             {
@@ -103,8 +103,8 @@ public class StartProcess(ILogger<StartProcess> logger)
 
                 switch (process.ExitCode)
                 {
-                    case 0: logger.Buzz.Okay.LogInformation("Process '{aion.workflow.step.command_line}' completed in {aion.workflow.step.duration_ms:N0} ms.", commandLine, stopwatch.Elapsed.TotalMilliseconds); break;
-                    default: logger.Buzz.Fail.LogInformation("Process '{aion.workflow.step.command_line}' failed after {aion.workflow.step.duration_ms:N0} ms with exit-code {aion.workflow.step.exit_code}.", commandLine, stopwatch.Elapsed.TotalMilliseconds, process.ExitCode); break;
+                    case 0: logger.Buzz.Last.LogInformation("Process '{aion.workflow.step.command_line}' completed in {aion.workflow.step.duration_ms:N0} ms.", commandLine, stopwatch.Elapsed.TotalMilliseconds); break;
+                    default: logger.Buzz.Last.LogInformation("Process '{aion.workflow.step.command_line}' failed after {aion.workflow.step.duration_ms:N0} ms with exit-code {aion.workflow.step.exit_code}.", commandLine, stopwatch.Elapsed.TotalMilliseconds, process.ExitCode); break;
                 }
 
                 return new StartProcessResult(commandLine)

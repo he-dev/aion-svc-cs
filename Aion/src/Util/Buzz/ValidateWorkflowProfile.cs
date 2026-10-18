@@ -7,25 +7,26 @@ namespace Aion.Util.Buzz;
 
 public class ValidateWorkflowProfile(IOptions<SchedulerOptions> schedulerOptions)
 {
-
-
-    public IEnumerable<string> That(WorkflowProfile context)
+    public IEnumerable<string> That(WorkflowProfileJson profile)
     {
-        foreach (var (key, value) in context.Variables)
+        if (profile.Variables is not null)
         {
-            if (string.IsNullOrWhiteSpace(value))
+            foreach (var (key, value) in profile.Variables)
             {
-                yield return $"Cannot use [{nameof(WorkflowProfile)}.{nameof(WorkflowProfile.Variables)}][{key}] because its value is null or empty.";
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    yield return $"Cannot use [{nameof(WorkflowProfile)}.{nameof(WorkflowProfileJson.Variables)}][{key}] because its value is null or empty.";
+                }
             }
         }
 
-        if (context.Logger is not null)
+        if (profile.Logger is not null)
         {
-            var loggersPath = System.IO.Path.Join(schedulerOptions.Value.Home, "loggers", $"{context.Logger}.json");
+            var loggersPath = System.IO.Path.Join(schedulerOptions.Value.Home, "loggers", $"{profile.Logger}.json");
 
             if (!System.IO.File.Exists(loggersPath))
             {
-                yield return $"Cannot use [{nameof(WorkflowProfile)}.{nameof(WorkflowProfile.Logger)}]'s '{context.Logger}' because the file '{loggersPath}' it refers to, does not exist.";
+                yield return $"Cannot use [{nameof(WorkflowProfile)}.{nameof(WorkflowProfileJson.Logger)}]'s '{profile.Logger}' because the file '{loggersPath}' it refers to, does not exist.";
             }
         }
     }

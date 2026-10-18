@@ -10,9 +10,9 @@ using Quartz;
 
 namespace Aion.Core.Objective.Workflows;
 
-public class ComposeWorkflowInfo
+public class ComposeWorkflowOverview
 (
-    ILogger<ComposeWorkflowInfo> logger,
+    ILogger<ComposeWorkflowOverview> logger,
     FindWorkflows findWorkflows,
     ComposeWorkflow composeWorkflow
 )
@@ -29,24 +29,29 @@ public class ComposeWorkflowInfo
         }
 
         var utcNow = DateTimeOffset.UtcNow; // note: Keeps the timestamp stable for all items.
-        var results =
-            from workflow in workflows
+        var okay =
+            from workflow in workflows.OfType<Workflow.Okay>()
             let next = workflow.Trigger.FiresAt(utcNow).Take(3).Select(x => x.ToLocalTime())
-            orderby next.FirstOrDefault(), workflow.Path.Directory, workflow.Path.Workflow
+            orderby next.FirstOrDefault(), workflow.Spec.Path.Directory, workflow.Spec.Path.Workflow
             select new
             {
-                path = workflow.Path,
-                isOn = !workflow.Disabled,
-                okay = workflow.Okay,
+                path = workflow.Spec.Path,
+                isOn = workflow.Spec.Disabled == false,
                 cron = ((ICronTrigger)workflow.Trigger).CronExpressionString,
                 next = next,
-                steps = new
-                {
-                    workflow.Steps.Count,
-                    enabled = workflow.Steps.Where(s => !s.Disabled).Select(s => s.Index)
-                }
+                steps =
+                    from step in workflow.Steps
+                    select new
+                    {
+                        step.Spec.Index,
+                        step.Spec.Name,
+                    }
             };
 
-        return new { results };
+        var yuck =
+            from workflow in workflows.OfType<Workflow.Yuck>()
+            select new { workflow.Spec.Path, workflow.Spec.Issues };
+
+        return new { okay, yuck };
     }
 }

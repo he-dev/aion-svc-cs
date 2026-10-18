@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Aion.Meta;
 
@@ -31,6 +32,15 @@ public static class EnumerableExtensions
         }
 
         return first;
+    }
+
+    public static IEnumerable<KeyValuePair<TKey, TValue>> LastValueWins<TKey, TValue>
+    (
+        this IEnumerable<KeyValuePair<TKey, TValue>> keyValuePairs,
+        IEqualityComparer<TKey>? comparer = null
+    ) where TKey : notnull
+    {
+        return keyValuePairs.GroupBy(x => x.Key,  (key, values) => values.Last(), comparer);
     }
 }
 

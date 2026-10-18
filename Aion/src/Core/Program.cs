@@ -1,7 +1,6 @@
 ﻿using System;
 using Aion.Core.Interface.Endpoints;
 using Aion.Core.Interface.Jobs;
-using Aion.Core.Objective;
 using Aion.Core.Objective.Downtimes;
 using Aion.Core.Objective.Workflows;
 using Aion.Meta;
@@ -22,6 +21,9 @@ using ExecuteStep = Aion.Core.Objective.Workflows.ExecuteStep;
 
 var builder = WebApplication.CreateBuilder(args);
 
+const string WorkflowLogKey = "WorkflowLog";
+
+
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -31,7 +33,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.ConfigureFromSection<SchedulerOptions>(builder.Configuration);
 builder.Services.AddSingleton<IValidateOptions<SchedulerOptions>, SchedulerOptionsValidation>();
 builder.Services.AddSingleton<IPostConfigureOptions<SchedulerOptions>, SchedulerOptionsPostConfigure>();
-builder.Services.AddSingleton<MapLogEvent>();
+builder.Services.AddKeyedSingleton(WorkflowLogKey, new MapLogEventByProperty("aion.workflow.execution_id"));
 
 builder
     .Configuration
@@ -57,17 +59,15 @@ builder
             .Enrich.FromLogContext()
             .Enrich.With<EnrichLogEventWithActivity>()
             .Enrich.With(new EnrichLogEventWithDuration(ts => (int)ts.TotalMilliseconds))
-            .WriteTo.Sink(services.GetRequiredService<MapLogEvent>());
+            .WriteTo.Sink(services.GetRequiredKeyedService<MapLogEventByProperty>(WorkflowLogKey));
     });
 
 builder.Services.AddSingleton(x => x.GetRequiredService<IHostEnvironment>().ContentRootFileProvider);
 
 builder.Services.AddScoped<WorkflowExecutionJob>();
 builder.Services.AddScoped<WorkflowPollingJob>();
-
 builder.Services.AddScoped<ValidateWorkflowProfile>();
-builder.Services.AddScoped<ValidateWorkflowSpec>();
-builder.Services.AddScoped<ValidateWorkflowStepSpec>();
+builder.Services.AddScoped<ValidateWorkflowFile>();
 
 
 // meta: These two services must be singletons because otherwise cannot inject them into ITriggerListener instances.
@@ -109,9 +109,8 @@ builder.Services.AddQuartzHostedService(options =>
 });
 
 
-builder.Services.AddScoped<ComposeWorkflowInfo>();
+builder.Services.AddScoped<ComposeWorkflowOverview>();
 builder.Services.AddScoped<ScheduleWorkflow>();
-builder.Services.AddScoped<SynchronizeWorkflows>();
 builder.Services.AddScoped<ScheduleWorkflowPolling>();
 builder.Services.AddScoped<ExecuteWorkflow>();
 builder.Services.AddScoped<GetProfileTriggers>();

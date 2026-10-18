@@ -1,11 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
 using Aion.Core.Interface.Jobs;
-using Aion.Meta.Logging;
+using Aion.Meta.Logging.Wiretap;
+using Aion.Util.Buzz;
 using Aion.Util.Data;
+using Aion.Util.Data.Scheduler;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Quartz;
 
 namespace Aion.Core.Objective.Workflows;
@@ -13,99 +17,128 @@ namespace Aion.Core.Objective.Workflows;
 public class ScheduleWorkflow
 (
     ILogger<ScheduleWorkflow> logger,
-    ISchedulerFactory schedulerFactory
+    IOptions<SchedulerOptions> schedulerOptions,
+    ISchedulerFactory schedulerFactory,
+    FindWorkflows findWorkflows,
+    ComposeWorkflow composeWorkflow
 )
 {
     // https://www.quartz-scheduler.net/documentation/quartz-3.x/quick-start.html
 
     // note: This can only succeed, otherwise it throws an exception.
-    public async Task<bool> Invoke(Workflow workflow, IProgress<ScheduleChange> progress)
+    public async Task<ScheduleChange> At<T>(ITrigger trigger) where T : Workflow
     {
-        using var scope = logger.BeginScopeFrom(new { WorkflowPath = workflow.Path });
+        using var scope = logger.BeginScopeWith(("aion.workflow.trigger.key", trigger.Key.ToString()));
         var scheduler = await schedulerFactory.GetScheduler();
 
-        if (workflow.Disabled)
+        if (typeof(T) == typeof(Workflow.Yuck))
         {
-            if (await scheduler.DeleteJob(workflow.Trigger.JobKey))
+            if (await scheduler.DeleteJob(trigger.JobKey))
             {
-                logger.LogInformation("Workflow '{WorkflowPath}' has been unscheduled because it is disabled.", workflow.Path);
-                progress.Report(new ScheduleChange.DeleteBecauseDisabled(workflow.Path));
-                return true;
+                logger.Buzz.LogDebug("Trigger '{aion.workflow.trigger.key}' has been deleted because it is yuck.");
+                return new ScheduleChange.DeleteBecauseIssues();
             }
 
-            logger.LogInformation("Workflow '{WorkflowPath}' is not scheduled.", workflow.Path);
-            return false;
-        }
-
-        if (workflow.Steps.All(step => step.Disabled))
-        {
-            if (await scheduler.DeleteJob(workflow.Trigger.JobKey))
-            {
-                logger.LogInformation("Workflow '{WorkflowPath}' has been unscheduled because it is empty.", workflow.Path);
-                progress.Report(new ScheduleChange.DeleteBecauseEmpty(workflow.Path));
-                return true;
-            }
-
-            logger.LogInformation("Workflow '{WorkflowPath}' is not scheduled.", workflow.Path);
-            return false;
+            return new ScheduleChange.NoopBecauseNotScheduled();
         }
 
         var jobDetail =
             JobBuilder
                 .Create<WorkflowExecutionJob>()
-                .WithIdentity(workflow.Trigger.JobKey)
+                .WithIdentity(trigger.JobKey)
                 .DisallowConcurrentExecution()
                 .Build();
 
-        if (workflow.Trigger is ICronTrigger trigger)
+        if (trigger is ICronTrigger cronTrigger)
         {
             // core: Compare cron expressions only if the workflow is already scheduled.
             if (await scheduler.GetTrigger(trigger.Key) is ICronTrigger { CronExpressionString: { } currentCron })
             {
                 // core: Compare the cron expressions.
-                if (trigger is { CronExpressionString: { } otherCron } && currentCron.Equals(otherCron))
+                if (cronTrigger is { CronExpressionString: { } otherCron } && currentCron.Equals(otherCron))
                 {
-                    logger.LogInformation("Workflow '{WorkflowPath}' has the same cron expression: '{Cron}'.", workflow.Path, currentCron);
-                    return false;
+                    logger.Buzz.LogDebug("Trigger '{aion.workflow.trigger.key}' has not changed.");
+                    return new ScheduleChange.NoopBecauseNoChanges();
                 }
 
-                logger.LogInformation("Workflow '{WorkflowPath}' schedule has changed to: '{CurrentCron}'.", workflow.Path, currentCron);
+                using var cronScope = logger.BeginScopeWith(("aion.workflow.trigger.cron", cronTrigger.CronExpressionString));
+                logger.Buzz.LogDebug("Trigger '{aion.workflow.trigger.key}' has a new schedule: {aion.workflow.trigger.cron}.");
             }
             else
             {
-                logger.LogError("Workflow trigger for '{WorkflowPath}' could not be retrieved.", workflow.Path);
-                return false;
+                logger.Buzz.LogError("Trigger '{aion.workflow.trigger.key}' not found.");
+                return new ScheduleChange.NoopBecauseTriggerNotFound();
             }
         }
 
-        if (await scheduler.RescheduleJob(workflow.Trigger.Key, workflow.Trigger) is { } next)
+        if (await scheduler.RescheduleJob(trigger.Key, trigger) is { } next)
         {
-            logger.LogInformation("Workflow '{WorkflowPath}' will be executed at '{Next}'.", workflow.Path, next);
-            progress.Report(new ScheduleChange.RescheduleBecauseChanged(workflow.Path, next));
+            using var _ = logger.BeginScopeWith(("aion.workflow.trigger.next", next));
+            logger.Buzz.LogDebug("Trigger '{aion.workflow.trigger.key}' rescheduled. Next execution at '{aion.workflow.trigger.next}'.");
+            return new ScheduleChange.RescheduleBecauseChanged(next);
+        }
+        else
+        {
+            var nextNew = await scheduler.ScheduleJob(jobDetail, trigger);
+            using var _ = logger.BeginScopeWith(("aion.workflow.trigger.next", nextNew));
+            logger.Buzz.LogDebug("Trigger '{aion.workflow.trigger.key}' scheduled. Next execution at '{aion.workflow.trigger.next}'.");
+            return new ScheduleChange.ScheduleBecauseNew(nextNew);
+        }
+    }
+
+    // meta: Cannot be IAsyncEnumerable because of try/catch.
+    public async Task<bool> Directory()
+    {
+        using var activity = logger.BeginActivity<ScheduleWorkflow>
+        (
+            ("aion.scheduler.home", schedulerOptions.Value.Home)
+        );
+
+        try
+        {
+            foreach (var workflowPath in findWorkflows.Where())
+            {
+                if (await composeWorkflow.From(workflowPath, WorkflowPatch.Empty) is Workflow.Okay workflow)
+                {
+                    // todo: Log schedule changes.
+                    var scheduleChange = await At<Workflow.Okay>(workflow.Trigger);
+                }
+            }
+
+            activity.Buzz.Last.LogInformation("Synchronization of '{aion.scheduler.home}' finished in {aion.activity.duration_ms}.");
+
             return true;
         }
-
-        var nextNew = await scheduler.ScheduleJob(jobDetail, workflow.Trigger);
-        logger.LogInformation("Workflow '{WorkflowPath}' will be executed at '{Next}'.", workflow.Path, workflow.Trigger.NextFireTimeUtc);
-        progress.Report(new ScheduleChange.ScheduleBecauseNew(workflow.Path, nextNew));
-        return true;
+        catch (Exception ex)
+        {
+            activity.Buzz.Last.LogError(ex, "Synchronization of '{aion.scheduler.home}' failed.");
+            return false;
+        }
     }
 }
 
-public abstract record ScheduleChange(WorkflowPath WorkflowPath, DateTimeOffset? Next = null)
+public abstract record ScheduleChange(DateTimeOffset? Next = null)
 {
     public string Reason => GetType().Name;
 
-    public record DeleteBecauseDisabled(WorkflowPath WorkflowPath) : ScheduleChange(WorkflowPath);
+    public record NoopBecauseNotScheduled : ScheduleChange;
 
-    public record DeleteBecauseEmpty(WorkflowPath WorkflowPath) : ScheduleChange(WorkflowPath);
+    public record NoopBecauseNoChanges : ScheduleChange;
 
-    public record ScheduleBecauseNew(WorkflowPath WorkflowPath, DateTimeOffset? Next) : ScheduleChange(WorkflowPath, Next);
+    public record NoopBecauseTriggerNotFound : ScheduleChange;
 
-    public record RescheduleBecauseChanged(WorkflowPath WorkflowPath, DateTimeOffset? Next) : ScheduleChange(WorkflowPath, Next);
+    public record DeleteBecauseIssues : ScheduleChange;
+
+    public record DeleteBecauseDisabled : ScheduleChange;
+
+    public record DeleteBecauseEmpty : ScheduleChange;
+
+    public record ScheduleBecauseNew(DateTimeOffset? Next) : ScheduleChange(Next);
+
+    public record RescheduleBecauseChanged(DateTimeOffset? Next) : ScheduleChange(Next);
 }
 
-public class ScheduleWorkflowProgress : List<ScheduleChange>, IProgress<ScheduleChange>
+public class SynchronizeWorkflowProgress : List<ScheduleChange>, IProgress<ScheduleChange>
 {
     public void Report(ScheduleChange value) => Add(value);
 }

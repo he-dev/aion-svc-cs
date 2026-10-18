@@ -29,7 +29,9 @@ public class StepVariableGroup : PropertyScriptObject, IVariableGroup
 {
     public string? Name { get; init; }
     public required int Index { get; init; }
-    public ActivityTraceId TraceId => Activity.Current?.TraceId ?? default;
-    public ActivitySpanId SpanId => Activity.Current?.SpanId ?? default;
-    public string? ParentId => Activity.Current?.ParentId;
+}
+
+public class ExecutionVariableGroup : PropertyScriptObject, IVariableGroup
+{
+    public required string TraceId { get; init; }
 }

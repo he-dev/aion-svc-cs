@@ -1,50 +1,62 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using Quartz;
 
 namespace Aion.Util.Data;
 
-public record Workflow
+public abstract record Workflow
 {
-    public WorkflowPath Path { get; init; } = null!;
-
-    // core: Make the user specify this value explicitly, so they don't activate workflows by accident.
-    public bool Disabled { get; init; }
-
-    public ITrigger Trigger { get; init; } = null!;
-
-    public WorkflowMode Mode => Trigger is ICronTrigger ? WorkflowMode.Cron : WorkflowMode.User;
-
-    public IImmutableDictionary<string, string> Variables { get; init; } = null!;
-
-    public IImmutableList<Step> Steps { get; init; } = [];
-
-    public Serilog.ILogger Logger { get; init; }
-
-    public Exception? Exception { get; init; }
-
-    public bool Okay => Exception is null && Steps.All(step => step.Exception is null);
-
-    public record Step
+    public record Okay : Workflow
     {
-        public int Index { get; init; }
+        public required WorkflowSpec.Okay Spec { get; init; }
 
-        public string? Name { get; init; }
+        public required bool Enabled { get; init; }
 
-        public bool Disabled { get; init; } = true;
+        // core: Use a trigger that is always in the past to satisfy the null-object pattern and keep it harmless.
+        public required ITrigger Trigger { get; init; }
 
-        public string FileName { get; init; } = null!;
+        public WorkflowMode Mode => Trigger is ICronTrigger ? WorkflowMode.Cron : WorkflowMode.User;
 
-        // note: Arguments can pass runtime values such as activity ids, so this property must be lazy.
-        public Func<string[]> Arguments { get; init; } = null!;
+        public required IImmutableDictionary<string, string> Variables { get; init; }
 
-        public IImmutableDictionary<string, string> Environment { get; init; } = null!;
+        public required IImmutableList<Step> Steps { get; init; }
 
-        public string WorkingDirectory { get; init; } = null!;
+        public required Serilog.ILogger Logger { get; init; } = Serilog.Core.Logger.None;
+    }
 
-        public TimeSpan Timeout { get; init; }
+    public record Yuck : Workflow
+    {
+        public required WorkflowSpec.Yuck Spec { get; init; }
+    }
 
-        public Exception? Exception { get; init; }
+    public abstract record Step
+    {
+        public required WorkflowSpec.Step Spec { get; init; }
+
+        public required int Index { get; init; }
+
+        public record Okay : Step
+        {
+            public required bool Enabled { get; init; }
+
+            public string? Name { get; init; }
+
+            public required string FileName { get; init; }
+
+            // note: Arguments can pass runtime values such as activity ids, so this property must be lazy.
+            public required Func<string, IEnumerable<string>> Arguments { get; init; }
+
+            public required IImmutableDictionary<string, string> Environment { get; init; }
+
+            public required string WorkingDirectory { get; init; }
+
+            public required TimeSpan Timeout { get; init; }
+        }
+
+        public record Yuck : Step
+        {
+            public required IImmutableList<string> Issues { get; init; }
+        }
     }
 }

@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Aion.Meta.Logging;
+using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Data.Scheduler;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

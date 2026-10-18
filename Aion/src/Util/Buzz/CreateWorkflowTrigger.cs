@@ -40,7 +40,8 @@ public static class CreateWorkflowTrigger
     (
         workflowPath,
         WorkflowMode.Cron,
-        builder => builder.WithCronSchedule(cronExpression));
+        builder => builder.WithCronSchedule(cronExpression)
+    );
 
     public static ITrigger Simple
     (
@@ -52,4 +53,6 @@ public static class CreateWorkflowTrigger
         WorkflowMode.User,
         builder => builder.StartAt(startAtUtc).WithSimpleSchedule(x => x.WithRepeatCount(0))
     );
+
+    public static ITrigger Never(WorkflowPath workflowPath) => Simple(workflowPath, DateTimeOffset.MinValue);
 }

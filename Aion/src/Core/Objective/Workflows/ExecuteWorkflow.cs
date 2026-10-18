@@ -1,12 +1,12 @@
 using System;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Aion.Meta.Logging;
+using Aion.Meta.Logging.Wiretap;
 using Aion.Meta.Serilog;
 using Aion.Util.Data;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Aion.Core.Objective.Workflows;
@@ -14,75 +14,71 @@ namespace Aion.Core.Objective.Workflows;
 public class ExecuteWorkflow
 (
     ILogger<ExecuteWorkflow> logger,
-    MapLogEvent mapLogEvent,
+    [FromKeyedServices("WorkflowLog")] MapLogEventByProperty mapLogEvent,
     ExecuteStep executeStep
 )
 {
-    public async Task<bool> Now
+    public async Task Now
     (
-        Workflow workflow,
+        Workflow.Okay workflow,
         ExecuteWorkflowProgress progress,
         CancellationToken cancellationToken = default
     )
     {
-        using var activity = new Activity(nameof(ExecuteWorkflow)).Start();
         using var registration = mapLogEvent.To(workflow.Logger);
-        using var scope = logger.BeginScopeWith
+        using var activity = logger.BeginActivity<ExecuteWorkflow>
         (
-            nameof(ExecuteWorkflow),
-            ("aion.workflow.path", workflow.Path.Workflow),
+            ("aion.workflow.path", workflow.Spec.Path.Workflow),
             ("aion.workflow.mode", workflow.Mode),
-            ("aion.workflow.execution_id", registration.ExecutionId)
+            (mapLogEvent.PropertyName, registration.ExecutionId)
         );
 
-        scope.Core.Zero.LogInformation("Executing workflow '{aion.workflow.path}'", workflow.Path.Workflow);
+        activity.Core.Zero.LogInformation("Executing workflow '{aion.workflow.path}'.");
 
         try
         {
             foreach (var step in workflow.Steps)
             {
-                progress.Report(await executeStep.Now(step, cancellationToken));
-                cancellationToken.ThrowIfCancellationRequested();
+                switch (step)
+                {
+                    case Workflow.Step.Okay { Enabled: true } okay:
+                        progress.Report(await executeStep.Now(okay, cancellationToken));
+                        break;
+                    case Workflow.Step.Okay okay:
+                        activity.Core.LogInformation("Skipping step {aion.workflow.step.index} because it is disabled.", okay.Spec.Index);
+                        break;
+                    case Workflow.Step.Yuck yuck:
+                        activity.Core.LogInformation("Skipping step {aion.workflow.step.index} because it is yuck.", yuck.Spec.Index);
+                        break;
+                }
             }
 
-            activity.SetStatus(ActivityStatusCode.Ok).Stop();
+            cancellationToken.ThrowIfCancellationRequested();
 
-            scope.Core.Okay.LogInformation
+            using var stats = logger.BeginScopeWith
             (
-                "Workflow '{aion.workflow.path}' completed in {aion.workflow.duration_ms:N0} ms. Steps: {aion.workflow.steps.total}, Okay: {aion.workflow.steps.passed}, Fail: {aion.workflow.steps.failed}, Timeout: {aion.workflow.steps.timeout}.",
-                workflow.Path.Workflow,
-                activity.Duration,
-                progress.Count,
-                progress.Okay,
-                progress.Fail,
-                progress.TimedOut
+                ("aion.workflow.steps.count", workflow.Steps.Count),
+                ("aion.workflow.steps.passed", progress.Passed),
+                ("aion.workflow.steps.failed", progress.Failed)
             );
-
-            logger.Buzz.LogInformation("OkayRate: '{aion.workflow.okay_rate}', FailRate: {aion.workflow.fail_rate}.", progress.OkayRate, progress.FailRate);
-
-            return true;
+            activity.Core.Okay.LogInformation("Workflow '{aion.workflow.path}' completed in {aion.activity.duration_ms:N0} ms. Steps: {aion.workflow.steps.passed} passed, {aion.workflow.steps.failed} failed.");
         }
-        catch(OperationCanceledException)
+        catch (OperationCanceledException)
         {
-            scope.Core.Fail.LogError("Workflow '{aion.workflow.path}' execution was canceled in {aion.workflow.duration_ms:N0}.", workflow.Path.Workflow, activity.Duration);
-            return false;
+            activity.Core.Last.LogError("Workflow '{aion.workflow.path}' was canceled in {aion.activity.duration_ms:N0} ms.");
         }
+
         catch (Exception ex)
         {
-            activity.SetStatus(ActivityStatusCode.Error).Stop();
-            scope.Core.Fail.LogError(ex, "Workflow '{aion.workflow.path}' execution failed in {aion.workflow.duration_ms:N0}.", workflow.Path.Workflow, activity.Duration);
-            return false;
+            activity.Core.Last.LogError(ex, "Workflow '{aion.workflow.path}' failed in {aion.activity.duration_ms:N0} ms.");
         }
     }
 }
 
 public class ExecuteWorkflowProgress : Collection<ExecuteStepResult>, IProgress<ExecuteStepResult>
 {
-    public int Okay => this.Count(result => result.Process?.ExitCode == 0);
-    public int Fail => this.Count(result => result.Process?.ExitCode != 0);
-    public int TimedOut => this.Count(result => result.Process?.TimedOut == true);
-    public int OkayRate => Count == 0 ? 0 : (Okay * 100) / Count;
-    public int FailRate => Count == 0 ? 0 : (Fail * 100) / Count;
+    public int Passed => this.Count(result => result.Process?.ExitCode == 0);
+    public int Failed => this.Count(result => result.Process?.ExitCode != 0);
 
     public void Report(ExecuteStepResult value) => Add(value);
 }

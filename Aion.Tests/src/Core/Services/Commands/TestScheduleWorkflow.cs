@@ -65,8 +65,8 @@ public class TestScheduleWorkflow(TestWebApplication testWebApplication) : IClas
     {
         var results = await SynchronizeWorkflow
         (
-            EmptyWorkflowDraft with { Disabled = true, Steps = [new WorkflowStepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] },
-            EmptyWorkflowDraft with { Disabled = true, Steps = [new WorkflowStepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] }
+            EmptyWorkflowDraft with { Disabled = true, Steps = [new StepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] },
+            EmptyWorkflowDraft with { Disabled = true, Steps = [new StepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] }
         ).ToListAsync();
 
         Assert.Equal(2, results.Count);
@@ -79,8 +79,8 @@ public class TestScheduleWorkflow(TestWebApplication testWebApplication) : IClas
     {
         var results = await SynchronizeWorkflow
         (
-            EmptyWorkflowDraft with { Disabled = true, Steps = [new WorkflowStepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] },
-            EmptyWorkflowDraft with { Disabled = false, Steps = [new WorkflowStepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] }
+            EmptyWorkflowDraft with { Disabled = true, Steps = [new StepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] },
+            EmptyWorkflowDraft with { Disabled = false, Steps = [new StepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] }
         ).ToListAsync();
 
         Assert.Equal(2, results.Count);
@@ -93,7 +93,7 @@ public class TestScheduleWorkflow(TestWebApplication testWebApplication) : IClas
     {
         var results = await SynchronizeWorkflow
         (
-            EmptyWorkflowDraft with { Disabled = true, Steps = [new WorkflowStepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] },
+            EmptyWorkflowDraft with { Disabled = true, Steps = [new StepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] },
             EmptyWorkflowDraft with { Disabled = true, Steps = [] }
         ).ToListAsync();
 
@@ -107,8 +107,8 @@ public class TestScheduleWorkflow(TestWebApplication testWebApplication) : IClas
     {
         var results = await SynchronizeWorkflow
         (
-            EmptyWorkflowDraft with { Disabled = true, Cron = "0/5 * * * * ?", Steps = [new WorkflowStepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] },
-            EmptyWorkflowDraft with { Disabled = true, Cron = "0/6 * * * * ?", Steps = [new WorkflowStepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] }
+            EmptyWorkflowDraft with { Disabled = true, Cron = "0/5 * * * * ?", Steps = [new StepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] },
+            EmptyWorkflowDraft with { Disabled = true, Cron = "0/6 * * * * ?", Steps = [new StepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] }
         ).ToListAsync();
 
         Assert.Equal(2, results.Count);
@@ -121,7 +121,7 @@ public class TestScheduleWorkflow(TestWebApplication testWebApplication) : IClas
     {
         var results = await SynchronizeWorkflow
         (
-            EmptyWorkflowDraft with { Disabled = true, Steps = [new WorkflowStepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] }
+            EmptyWorkflowDraft with { Disabled = true, Steps = [new StepSpec { Disabled = true, FileName = @"c:\fake\path\to\fake.exe" }] }
         ).ToListAsync();
 
         Assert.Single(results);

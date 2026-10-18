@@ -3,42 +3,51 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Logging;
 
-namespace Aion.Meta.Logging;
+// ReSharper disable once CheckNamespace
+namespace Aion.Meta.Logging.Wiretap;
 
-public record Pulse(string Value)
+public static class Wiretap
 {
-    public string Name => "wiretap.pulse";
-
-    public static Pulse Core { get; } = new("core");
-    public static Pulse Buzz { get; } = new("buzz");
-
-    public static implicit operator (string Name, object? Value)(Pulse state) => (state.Name, state.Value);
+    public const string AppName = "aion";
 }
 
-public record Event(string Value)
+public record LoggerProperty(string Name, object? Value)
 {
-    public string Name => "wiretap.event";
+    public static implicit operator (string Name, object? Value)(LoggerProperty state) => (state.Name, state.Value);
+}
 
+public record Pulse(object? Value) : LoggerProperty($"{Wiretap.AppName}.activity.pulse", Value)
+{
+    public static Pulse Core { get; } = new("core");
+    public static Pulse Buzz { get; } = new("buzz");
+}
+
+public record Event(object? Value) : LoggerProperty($"{Wiretap.AppName}.activity.event", Value)
+{
     // core: This is the very first event.
     public static Event Zero { get; } = new("zero");
 
-    public sealed record Last(string Value) : Event(Value)
+    public sealed record Last(object? Value) : Event(Value)
     {
         public static Last Okay { get; } = new("okay");
         public static Last Fail { get; } = new("fail");
         public static Last Noop { get; } = new("noop");
         public static Last Void { get; } = new("void");
-    }
+        public static Last Auto { get; } = new("auto");
 
-    public static implicit operator (string Name, object? Value)(Event state) => (state.Name, state.Value);
+        public static Last Map(LogLevel logLevel)
+        {
+            return logLevel >= LogLevel.Error ? Fail : Okay;
+        }
+    }
 }
 
-public interface IWiretap : ILogger
+public interface IPropertyLogger : ILogger
 {
     public ILogger Logger { get; }
 }
 
-public class Wiretap(ILogger logger, params (string Name, object? Value)[] loggerState) : IWiretap
+public class PropertyLogger(ILogger logger, LoggerProperty property) : IPropertyLogger
 {
     public ILogger Logger => logger;
 
@@ -48,9 +57,27 @@ public class Wiretap(ILogger logger, params (string Name, object? Value)[] logge
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
+        // core: Resolve last before IsEnabled, so scope-disposal does not think it's empty.
+        var logEvent = property;
+        if (property is Event.Last last)
+        {
+            // core: Override the last event if it's set to auto.
+            if (last == Event.Last.Auto)
+            {
+                last = Event.Last.Map(logLevel);
+            }
+
+            if (this.Scope is { } scope)
+            {
+                scope.SetLast(last);
+            }
+
+            logEvent = last;
+        }
+
         if (IsEnabled(logLevel))
         {
-            using (logger.BeginScopeWith(loggerState))
+            using (logger.BeginScopeWith(logEvent))
             {
                 logger.Log(logLevel, eventId, state, exception, formatter);
             }
@@ -58,12 +85,20 @@ public class Wiretap(ILogger logger, params (string Name, object? Value)[] logge
     }
 }
 
-public interface IWiretapScope : ILogger, IDisposable
+public interface IActivityLogger : ILogger, IDisposable
 {
-    void SetLast(Event.Last last);
+    bool SetLast(Event.Last last);
 }
 
-public class WiretapScope(ILogger logger, IDisposable? scope, string activity) : IWiretapScope
+public delegate void ConfigureActivity(System.Diagnostics.Activity activity);
+
+public class ActivityLogger
+(
+    string name,
+    ConfigureActivity configure,
+    ILogger logger,
+    IDisposable? scope
+) : IActivityLogger
 {
     private static readonly Dictionary<Event.Last, System.Diagnostics.ActivityStatusCode> StatusByEvent = new()
     {
@@ -72,9 +107,7 @@ public class WiretapScope(ILogger logger, IDisposable? scope, string activity) :
         [Event.Last.Fail] = System.Diagnostics.ActivityStatusCode.Error
     };
 
-    public ILogger Logger => logger;
-
-    private System.Diagnostics.Activity Activity { get; } = new System.Diagnostics.Activity(activity).Start();
+    private System.Diagnostics.Activity Activity { get; } = CreateActivity(name, configure);
 
     private Event.Last? LastEvent { get; set; }
 
@@ -86,48 +119,56 @@ public class WiretapScope(ILogger logger, IDisposable? scope, string activity) :
     {
         if (IsEnabled(logLevel))
         {
-            var isLast = LastEvent is not null;
-
-            if (isLast)
+            using (logger.BeginScopeWith(($"{Wiretap.AppName}.activity.name", Activity.OperationName)))
             {
-                Activity.SetEndTime(DateTime.UtcNow);
-
-                if (StatusByEvent.TryGetValue(LastEvent!, out var status))
+                if (LastEvent is not null)
                 {
-                    Activity.SetStatus(status);
+                    using (logger.BeginScopeWith(($"{Wiretap.AppName}.activity.duration_ms", (long)Activity.Duration.TotalMilliseconds)))
+                    {
+                        logger.Log(logLevel, eventId, state, exception, formatter);
+                    }
                 }
-            }
-
-            using (logger.BeginScopeWith(("wiretap.activity", Activity.OperationName)))
-            using (isLast ? logger.BeginScopeWith(("wiretap.duration_ms", Activity.Duration.TotalMilliseconds)) : null)
-            {
-                try
+                else
                 {
                     logger.Log(logLevel, eventId, state, exception, formatter);
-                }
-                finally
-                {
-                    if (isLast)
-                    {
-                        Activity.Stop();
-                    }
                 }
             }
         }
     }
 
-    public void SetLast(Event.Last last) => LastEvent = last;
-
-    public void Dispose()
+    public bool SetLast(Event.Last last)
     {
         if (LastEvent is null)
         {
-            LastEvent = Event.Last.Void;
-            this.LogWarning("Wiretap scope '{wiretap.activity}' was disposed without setting the last event.", Activity.OperationName);
+            Activity.SetEndTime(DateTime.UtcNow);
+            if (StatusByEvent.TryGetValue(last, out var status))
+            {
+                Activity.SetStatus(status);
+            }
+
+            LastEvent = last;
+            return true;
+        }
+
+        return false;
+    }
+
+    public void Dispose()
+    {
+        if (SetLast(Event.Last.Void))
+        {
+            this.LogWarning("Activity scope '{" + Wiretap.AppName + ".activity.name}}' was disposed without setting the last event.", Activity.OperationName);
         }
 
         Activity.Dispose();
         scope?.Dispose();
+    }
+
+    private static System.Diagnostics.Activity CreateActivity(string name, ConfigureActivity configure)
+    {
+        var activity = new System.Diagnostics.Activity(name);
+        configure(activity);
+        return activity.Start();
     }
 }
 
@@ -150,44 +191,58 @@ public static class LoggerExtensions
             return logger.BeginScope(state.Select(p => new KeyValuePair<string, object?>(p.Name, p.Value)));
         }
 
-        public IWiretapScope BeginScopeWith(string activity, params (string Name, object? Value)[] state)
+        public IActivityLogger BeginActivity(string name, ConfigureActivity configure, params (string Name, object? Value)[] state)
         {
-            var pairs = state.Append(("wiretap.activity", activity)).Select(p => new KeyValuePair<string, object?>(p.Name, p.Value));
-            return new WiretapScope(logger, logger.BeginScope(pairs), activity);
+            return new ActivityLogger(name, configure, logger, logger.BeginScopeWith(state));
         }
 
-        public IWiretap With(params (string Name, object? Value)[] state) => new Wiretap(logger, state);
+        public IActivityLogger BeginActivity(string name, params (string Name, object? Value)[] state)
+        {
+            return logger.BeginActivity(name, _ => { }, state);
+        }
 
-        public IWiretap Core => logger.With(Pulse.Core);
-        public IWiretap Buzz => logger.With(Pulse.Buzz);
+        public IActivityLogger BeginActivity<TActivityName>(ConfigureActivity configure, params (string Name, object? Value)[] state)
+        {
+            return logger.BeginActivity(typeof(TActivityName).Name, configure, state);
+        }
+
+        public IActivityLogger BeginActivity<TActivityName>(params (string Name, object? Value)[] state)
+        {
+            return logger.BeginActivity(typeof(TActivityName).Name, _ => { }, state);
+        }
+
+        public IPropertyLogger With(LoggerProperty property) => new PropertyLogger(logger, property);
+
+        public IPropertyLogger Core => logger.With(Pulse.Core);
+        public IPropertyLogger Buzz => logger.With(Pulse.Buzz);
     }
 
-    extension(IWiretap wiretap)
+    extension(IPropertyLogger propertyLogger)
     {
         // core: Locates the scope and sets the last event.
-        public Event.Last Last(Event.Last state)
+        public IActivityLogger? Scope
         {
-            ILogger current = wiretap;
-
-            while (current is IWiretap decorator)
+            get
             {
-                current = decorator.Logger;
-            }
+                ILogger current = propertyLogger;
+                while (current is IPropertyLogger decorator)
+                {
+                    current = decorator.Logger;
+                }
 
-            if (current is IWiretapScope scope)
-            {
-                scope.SetLast(state);
-            }
+                if (current is IActivityLogger scope)
+                {
+                    return scope;
+                }
 
-            return state;
+                return null;
+            }
         }
 
-        public IWiretap Zero => wiretap.With(Event.Zero);
-
-        public IWiretap Okay => wiretap.With(wiretap.Last(Event.Last.Okay));
-
-        public IWiretap Fail => wiretap.With(wiretap.Last(Event.Last.Fail));
-
-        public IWiretap Noop => wiretap.With(wiretap.Last(Event.Last.Noop));
+        public IPropertyLogger Zero => propertyLogger.With(Event.Zero);
+        public IPropertyLogger Okay => propertyLogger.With(Event.Last.Okay);
+        public IPropertyLogger Fail => propertyLogger.With(Event.Last.Fail);
+        public IPropertyLogger Noop => propertyLogger.With(Event.Last.Noop);
+        public IPropertyLogger Last => propertyLogger.With(Event.Last.Auto);
     }
 }

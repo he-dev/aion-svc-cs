@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Aion.Meta;
-using Aion.Meta.Logging;
+using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Buzz;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
@@ -19,21 +19,23 @@ public class ExecuteStep
 {
     public async Task<ExecuteStepResult> Now
     (
-        Workflow.Step step,
+        Workflow.Step.Okay step,
         CancellationToken cancellationToken = default
     )
     {
-        // meta: Setup logging contexts.
-        using var activity = new Activity(nameof(ExecuteStep)).Start();
-        using var scope = logger.BeginScopeWith(("aion.workflow.step.index", step.Index), ("aion.workflow.step.name", step.Name));
+        using var activity = logger.BeginActivity<ExecuteStep>
+        (
+            ("aion.workflow.step.index", step.Spec.Index),
+            ("aion.workflow.step.name", step.Name)
+        );
 
         try
         {
-            logger.LogInformation("Executing step {aion.workflow.step.index}.", step.Index);
+            activity.Core.Zero.LogInformation("Executing step {aion.workflow.step.index}.");
             var startProcessResult = await startProcess.Now
             (
                 step.FileName,
-                step.Arguments().Join(" "),
+                step.Arguments(Activity.Current!.TraceId.ToString()).Join(" "),
                 step.WorkingDirectory,
                 step.Environment.ToDictionary(),
                 step.Timeout,
@@ -43,30 +45,33 @@ public class ExecuteStep
             switch (startProcessResult.ExitCode)
             {
                 case 0:
-                    activity.SetStatus(ActivityStatusCode.Ok).Stop();
-                    logger.LogInformation("Step {aion.workflow.step.index} completed in {aion.workflow.step.duration_ms:N0} ms.", step.Index, activity.Duration);
+                {
+                    activity.Core.Last.LogInformation("Step {aion.workflow.step.index} completed in {aion.activity.duration_ms:N0} ms.");
                     break;
+                }
                 default:
-                    activity.SetStatus(ActivityStatusCode.Error).Stop();
-                    logger.LogError("Step {aion.workflow.step.index} failed after {aion.workflow.step.duration_ms:N0} ms with exit code {aion.workflow.step.exit_code}.", step.Index, activity.Duration, startProcessResult.ExitCode);
+                {
+                    using var exitScope = logger.BeginScopeWith(("aion.workflow.step.exit_code", startProcessResult.ExitCode));
+                    activity.Core.Last.LogInformation("Step {aion.workflow.step.index} failed after {aion.activity.duration_ms:N0} ms with exit code {aion.workflow.step.exit_code}.");
                     break;
+                }
             }
 
-            return new ExecuteStepResult(step.Index)
+            return new ExecuteStepResult(step.Spec.Index)
             {
                 Process = startProcessResult
             };
         }
         catch (OperationCanceledException)
         {
+            activity.Core.Last.LogError("Step {aion.workflow.step.index} cancelled after {aion.activity.duration_ms:N0} ms.");
             // core: Let the workflow handle the cancellation.
             throw;
         }
         catch (Exception ex)
         {
-            activity.SetStatus(ActivityStatusCode.Error).Stop();
-            logger.LogError(ex, "Step {aion.step.index} failed after {aion.step.duration_ms:N0} ms with an exception.", step.Index, activity.Duration);
-            return new ExecuteStepResult(step.Index);
+            activity.Core.Last.LogError(ex, "Step {aion.workflow.step.index} failed after {aion.activity.duration_ms:N0} ms with an exception.");
+            return new ExecuteStepResult(step.Spec.Index);
         }
     }
 }

@@ -1,50 +1,47 @@
 using System;
 using System.Collections.Generic;
-using System.Text.Json.Serialization;
+using System.Collections.Immutable;
 
 namespace Aion.Util.Data;
 
-// note: This class is deserialized from workflow JSON.
-public record WorkflowSpec
+public abstract record WorkflowSpec
 {
-    public bool Disabled { get; init; }
+    public required WorkflowPath Path { get; init; }
 
-    public string Cron { get; init; } = null!;
-
-    public Dictionary<string, string> Variables { get; init; } = [];
-
-    public string? Logger { get; init; }
-
-    public WorkflowStepSpec[] Steps { get; init; } = null!;
-
-    [JsonIgnore]
-    public WorkflowPath Path { get; init; } = null!;
-
-    public record Null : WorkflowSpec
+    public record Okay : WorkflowSpec
     {
-        public Null()
-        {
-            Disabled = true;
-        }
+        public bool Disabled { get; init; }
+
+        public required string Cron { get; init; }
+
+        public IImmutableDictionary<string, string> Variables { get; init; } = ImmutableDictionary<string, string>.Empty;
+
+        public string? Logger { get; init; }
+
+        public required IImmutableList<Step> Steps { get; init; }
     }
-}
 
-public record WorkflowStepSpec
-{
-    [JsonIgnore]
-    public int Index { get; init; } = -1;
+    public record Yuck : WorkflowSpec
+    {
+        public required IImmutableList<string> Issues { get; init; } = [];
+    }
 
-    public string? Name { get; init; }
+    public record Step
+    {
+        public required int Index { get; init; }
 
-    public bool Disabled { get; init; } = true;
+        public string? Name { get; init; }
 
-    public string FileName { get; init; } = null!;
+        public bool Disabled { get; init; }
 
-    public string[]? Arguments { get; init; }
+        public required string FileName { get; init; }
 
-    public Dictionary<string, string>? Environment { get; init; }
+        public required IImmutableList<string> Arguments { get; init; }
 
-    public string? WorkingDirectory { get; init; }
+        public required IImmutableDictionary<string, string> Environment { get; init; } = ImmutableDictionary<string, string>.Empty;
 
-    public TimeSpan? Timeout { get; init; }
+        public required string? WorkingDirectory { get; init; }
+
+        public required TimeSpan Timeout { get; init; }
+    }
 }
