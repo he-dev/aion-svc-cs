@@ -18,9 +18,9 @@ public class LoadWorkflowProfile
     ValidateWorkflowProfile validateWorkflowProfile
 )
 {
-    public async Task<WorkflowProfile> Where(WorkflowPath workflowPath)
+    public async Task<WorkflowProfile> WhereOrEmpty(WorkflowPath workflowPath)
     {
-        var profile = new WorkflowProfile.Okay();
+        var profile = new WorkflowProfile();
         var file = new FileInfo(workflowPath);
         for (var dir = file.Directory; dir != null; dir = dir.Parent)
         {
@@ -31,23 +31,23 @@ public class LoadWorkflowProfile
             }
 
             var profilePath = Path.Join(dir.FullName, ".profile.json");
-            if (await FromFile(profilePath) is WorkflowProfile.Okay okay)
+            if (await FromJson(profilePath) is { } current)
             {
-                profile += okay;
+                profile += current;
             }
         }
 
         return profile;
     }
 
-    public async Task<WorkflowProfile> FromFile(string profilePath)
+    public async Task<WorkflowProfile?> FromJson(string profilePath)
     {
         using var scope = logger.BeginScopeWith(("aion.profile.path", profilePath));
 
         if (!File.Exists(profilePath))
         {
             logger.Buzz.LogError("Cannot load workflow-profile from '{aion.profile.path}' because it does not exist.", profilePath);
-            return new WorkflowProfile.Yuck { Path = profilePath, Issues = ["The workflow-profile file does not exist."] };
+            return null;
         }
 
         try
@@ -67,26 +67,20 @@ public class LoadWorkflowProfile
             if (profile is null)
             {
                 logger.Buzz.LogError("File '{aion.profile.path}' is empty. It needs to contain a workflow-profile.");
-                return new WorkflowProfile.Yuck { Path = profilePath, Issues = ["The workflow-profile file is empty."] };
+                return null;
             }
 
-            var yuck = new WorkflowProfile.Yuck
+            if (validateWorkflowProfile.That(profile).ToList() is { Count: > 0 } issues)
             {
-                Path = profilePath,
-                Issues = [.. validateWorkflowProfile.That(profile)]
-            };
-
-            if (yuck.Issues.Any())
-            {
-                foreach (var issue in yuck.Issues)
+                foreach (var issue in issues)
                 {
                     logger.Buzz.LogError("{aion.profile.issue}", issue);
                 }
 
-                return yuck;
+                return null;
             }
 
-            return new WorkflowProfile.Okay
+            return new WorkflowProfile
             {
                 Variables = profile.Variables?.ToImmutableDictionary(x => x.Key, x => x.Value!) ?? ImmutableDictionary<string, string>.Empty,
                 Logger = profile.Logger
@@ -95,7 +89,7 @@ public class LoadWorkflowProfile
         catch (Exception e)
         {
             logger.LogError(e, "An error occurred while deserializing the workflow profile '{aion.profile.path}'.");
-            return new WorkflowProfile.Yuck { Path = profilePath, Issues = ["An error occurred while deserializing the workflow profile."] };
+            return null;
         }
     }
 }

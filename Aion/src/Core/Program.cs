@@ -34,6 +34,7 @@ builder.Services.ConfigureFromSection<SchedulerOptions>(builder.Configuration);
 builder.Services.AddSingleton<IValidateOptions<SchedulerOptions>, SchedulerOptionsValidation>();
 builder.Services.AddSingleton<IPostConfigureOptions<SchedulerOptions>, SchedulerOptionsPostConfigure>();
 builder.Services.AddKeyedSingleton(WorkflowLogKey, new MapLogEventByProperty("aion.workflow.execution_id"));
+builder.Services.AddSingleton<ObservableSink>();
 
 builder
     .Configuration
@@ -59,7 +60,8 @@ builder
             .Enrich.FromLogContext()
             .Enrich.With<EnrichLogEventWithActivity>()
             .Enrich.With(new EnrichLogEventWithDuration(ts => (int)ts.TotalMilliseconds))
-            .WriteTo.Sink(services.GetRequiredKeyedService<MapLogEventByProperty>(WorkflowLogKey));
+            .WriteTo.Sink(services.GetRequiredKeyedService<MapLogEventByProperty>(WorkflowLogKey))
+            .WriteTo.Sink(services.GetRequiredService<ObservableSink>());
     });
 
 builder.Services.AddSingleton(x => x.GetRequiredService<IHostEnvironment>().ContentRootFileProvider);

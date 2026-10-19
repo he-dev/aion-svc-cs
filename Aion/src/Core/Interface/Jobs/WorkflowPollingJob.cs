@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Aion.Core.Objective.Workflows;
 using Aion.Meta.Logging.Wiretap;
+using Aion.Meta.Serilog;
 using Microsoft.Extensions.Logging;
 using Quartz;
 
@@ -11,12 +13,13 @@ namespace Aion.Core.Interface.Jobs;
 internal class WorkflowPollingJob
 (
     ILogger<WorkflowPollingJob> logger,
+    ObservableSink observableSink,
     ScheduleWorkflow scheduleWorkflow
 ) : IJob
 {
     public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
-        using var scope = logger.BeginScopeWith
+        using var scope = logger.BeginActivity<WorkflowPollingJob>
         (
             ("aion.job.group", context.JobDetail.Key.Group),
             ("aion.job.name", context.JobDetail.Key.Name)
@@ -24,6 +27,8 @@ internal class WorkflowPollingJob
 
         logger.Buzz.Zero.LogDebug("Executing '{aion.job.group}:{aion.job.name}'.", context.JobDetail.Key.Group, context.JobDetail.Key.Name);
 
+        using var scheduleLog = logger.BeginLogEventObserver();
+        using var unsubscribe = observableSink.Subscribe(scheduleLog);
         try
         {
             await scheduleWorkflow.Directory();

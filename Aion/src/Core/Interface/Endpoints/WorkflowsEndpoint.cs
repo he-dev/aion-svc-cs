@@ -1,12 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Aion.Core.Objective.Workflows;
+using Aion.Meta.Serilog;
 using Aion.Util.Buzz;
 using Aion.Util.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Aion.Core.Interface.Endpoints;
 
@@ -38,11 +41,8 @@ public static class WorkflowsEndpoint
         {
             var trigger = CreateWorkflowTrigger.Simple(workflowPath, DateTimeOffset.UtcNow);
             var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
-            if (workflow is Workflow.Okay okay)
-            {
-                var change = await parameters.ScheduleWorkflow.At<Workflow.Okay>(okay.Trigger);
-                changes.Add(new { okay.Spec.Path.Workflow, change });
-            }
+            var change = await parameters.ScheduleWorkflow.At(workflow.Trigger);
+            changes.Add(new { workflow.Spec.Path.Workflow, change });
         }
 
         return Results.Accepted($"/api/workflows", new { changes });
@@ -55,11 +55,8 @@ public static class WorkflowsEndpoint
         {
             var trigger = CreateWorkflowTrigger.Simple(workflowPath, DateTimeOffset.UtcNow + body.Wait);
             var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
-            if (workflow is Workflow.Okay okay)
-            {
-                var change = await parameters.ScheduleWorkflow.At<Workflow.Okay>(okay.Trigger);
-                changes.Add(new { okay.Spec.Path.Workflow, change });
-            }
+            var change = await parameters.ScheduleWorkflow.At(workflow.Trigger);
+            changes.Add(new { workflow.Spec.Path.Workflow, change });
         }
 
         return Results.Accepted($"/api/workflows", new { changes });
@@ -72,26 +69,26 @@ public static class WorkflowsEndpoint
         {
             var trigger = CreateWorkflowTrigger.Simple(workflowPath, body.WhenUtc);
             var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
-            if (workflow is Workflow.Okay okay)
-            {
-                var change = await parameters.ScheduleWorkflow.At<Workflow.Okay>(okay.Trigger);
-                changes.Add(new { okay.Spec.Path.Workflow, change });
-            }
+            var change = await parameters.ScheduleWorkflow.At(workflow.Trigger);
+            changes.Add(new { workflow.Spec.Path.Workflow, change });
         }
 
         return Results.Accepted($"/api/workflows", new { schedules = changes });
     }
 
-    private static async Task<IResult> Synchronize(ScheduleWorkflow scheduleWorkflow)
+    private static async Task<IResult> Synchronize([AsParameters] SynchronizeRequest parameters)
     {
-        var progress = new SynchronizeWorkflowProgress();
-        if (await scheduleWorkflow.Directory())
+        using var scheduleLog = parameters.Logger.BeginLogEventObserver();
+        using var unsubscribe = parameters.ObservableSink.Subscribe(scheduleLog);
+
+        await parameters.ScheduleWorkflow.Directory();
+        if (scheduleLog.AtLeastErrors().Messages().ToList() is { Count: > 0 } errors)
         {
-            return Results.Ok(progress);
+            return Results.Ok(new { errors });
         }
         else
         {
-            return Results.NoContent();
+            return Results.Ok(new { results = scheduleLog.AtLeastInformations().Messages().ToList() });
         }
     }
 }
@@ -100,6 +97,13 @@ public struct StartRequest
 {
     public FindWorkflows FindWorkflows { get; init; }
     public ComposeWorkflow ComposeWorkflow { get; init; }
+    public ScheduleWorkflow ScheduleWorkflow { get; init; }
+}
+
+public struct SynchronizeRequest
+{
+    public ILogger<SynchronizeRequest> Logger { get; init; }
+    public ObservableSink ObservableSink { get; init; }
     public ScheduleWorkflow ScheduleWorkflow { get; init; }
 }
 

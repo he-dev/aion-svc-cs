@@ -157,7 +157,7 @@ public class ActivityLogger
     {
         if (SetLast(Event.Last.Void))
         {
-            this.LogWarning("Activity scope '{" + Wiretap.AppName + ".activity.name}}' was disposed without setting the last event.", Activity.OperationName);
+            this.LogWarning("Activity scope '{" + Wiretap.AppName + ".activity.name}' was disposed without setting the last event.", Activity.OperationName);
         }
 
         Activity.Dispose();

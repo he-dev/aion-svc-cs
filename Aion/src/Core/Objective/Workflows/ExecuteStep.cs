@@ -19,7 +19,7 @@ public class ExecuteStep
 {
     public async Task<ExecuteStepResult> Now
     (
-        Workflow.Step.Okay step,
+        Workflow.Step step,
         CancellationToken cancellationToken = default
     )
     {

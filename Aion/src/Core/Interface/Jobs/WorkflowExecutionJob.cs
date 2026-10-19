@@ -37,14 +37,20 @@ public class WorkflowExecutionJob
 
         try
         {
-            if (await composeWorkflow.From(workflowPath, WorkflowPatch.Empty) is Workflow.Okay workflow)
+            // core: Needs to restore the user-trigger in case one was used.
+            var patch =
+                workflowMode == WorkflowMode.User
+                    ? new WorkflowPatch { Trigger = context.Trigger }
+                    : WorkflowPatch.Empty;
+
+            if (await composeWorkflow.From(workflowPath, patch) is {} workflow)
             {
                 var progress = new ExecuteWorkflowProgress();
                 await executeWorkflow.Now(workflow, progress, cancellationToken);
             }
             else
             {
-                await scheduleWorkflow.At<Workflow.Yuck>(context.Trigger);
+                //await scheduleWorkflow.At<Workflow.Yuck>(context.Trigger);
             }
         }
         catch (OperationCanceledException)
@@ -55,7 +61,7 @@ public class WorkflowExecutionJob
         {
             // note: This should never happen.
             logger.Buzz.LogError(ex, "Job '{aion.job.group}:{aion.job.name}' failed.");
-            await scheduleWorkflow.At<Workflow.Yuck>(context.Trigger);
+            //await scheduleWorkflow.At<Workflow.Yuck>(context.Trigger);
             throw new JobExecutionException(ex);
         }
     }

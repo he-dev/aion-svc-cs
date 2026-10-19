@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-using Aion.Meta;
 using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
@@ -19,20 +17,20 @@ public class LoadWorkflowSpec
     ValidateWorkflowFile validateWorkflowFile
 )
 {
-    public async Task<WorkflowSpec> FromFile(WorkflowPath workflowPath, WorkflowProfile.Okay profile)
+    public async Task<WorkflowSpec?> FromJson(WorkflowPath workflowPath)
     {
         using var scope = logger.BeginScopeWith(("aion.workflow.path", workflowPath.Workflow));
 
         if (!File.Exists(workflowPath))
         {
-            logger.Buzz.Noop.LogError("The workflow '{aion.workflow.path}' does not exist.", workflowPath.Workflow);
-            return new WorkflowSpec.Yuck { Path = workflowPath, Issues = ["The workflow file does not exist."] };
+            logger.Buzz.Noop.LogError("Workflow '{aion.workflow.path}' does not exist.");
+            return null;
         }
 
         try
         {
             await using var fileStream = new FileStream(workflowPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var file = await JsonSerializer.DeserializeAsync<WorkflowSpecJson>(fileStream, new JsonSerializerOptions
+            var json = await JsonSerializer.DeserializeAsync<WorkflowSpecJson>(fileStream, new JsonSerializerOptions
             {
                 ReadCommentHandling = JsonCommentHandling.Skip,
                 PropertyNameCaseInsensitive = true,
@@ -43,39 +41,31 @@ public class LoadWorkflowSpec
                 }
             });
 
-            if (file is null)
+            if (json is null)
             {
-                logger.Buzz.Fail.LogError("The workflow '{aion.workflow.path}' could not be deserialized.", workflowPath.Workflow);
-                return new WorkflowSpec.Yuck { Path = workflowPath, Issues = ["The workflow file is null or empty."] };
+                logger.Buzz.Fail.LogError("Workflow '{aion.workflow.path}' is null or empty.");
+                return null;
             }
 
-            var yuck = new WorkflowSpec.Yuck { Path = workflowPath, Issues = [.. validateWorkflowFile.That(file)] };
-            if (yuck.Issues.Any())
+            if (validateWorkflowFile.That(json).ToList() is { Count: > 0 } issues)
             {
-                return yuck;
+                foreach (var issue in issues)
+                {
+                    logger.Buzz.LogError("{aion.workflow.issue}", issue);
+                }
             }
 
             // note: At this point we know that the file is okay.
-            var spec = new WorkflowSpec.Okay
+            var spec = new WorkflowSpec
             {
                 Path = workflowPath,
-                Cron = file.Cron!,
-                Disabled = file.Disabled == true,
-                Variables =
-                    profile
-                        .Variables
-                        .Concat(file.Variables!.Select(x => new KeyValuePair<string, string>(x.Key, x.Value!)))
-                        .LastValueWins()
-                        .ToImmutableDictionary(),
-                Logger =
-                    // core: Switch to the profile logger if the file logger is "@profile".
-                    file.Logger?.Equals("@profile", StringComparison.OrdinalIgnoreCase) == true
-                        ? profile.Logger
-                        // core: Use own logger, or the profile's if own one is not specified.
-                        : file.Logger ?? profile.Logger,
+                Cron = json.Cron!,
+                Disabled = json.Disabled == true,
+                Variables = json.Variables!.ToImmutableDictionary(x => x.Key, x => x.Value!),
+                Logger = json.Logger,
                 Steps =
                 [
-                    .. file.Steps!.Select((step, index) => new WorkflowSpec.Step
+                    .. json.Steps!.Select((step, index) => new WorkflowSpec.Step
                     {
                         Index = index,
                         Name = step!.Name,
@@ -92,8 +82,9 @@ public class LoadWorkflowSpec
         }
         catch (Exception e)
         {
-            logger.Buzz.Fail.LogError(e, "An error occurred while deserializing the workflow '{aion.workflow.path}'.");
-            return new WorkflowSpec.Yuck { Path = workflowPath, Issues = [$"An error occurred while deserializing the workflow file: {e.Message}"] };
+            logger.Buzz.Fail.LogError(e, "An error occurred while deserializing '{aion.workflow.path}'.");
+            return null;
         }
     }
+
 }

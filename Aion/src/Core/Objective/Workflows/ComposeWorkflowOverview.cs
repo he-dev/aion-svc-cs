@@ -30,7 +30,7 @@ public class ComposeWorkflowOverview
 
         var utcNow = DateTimeOffset.UtcNow; // note: Keeps the timestamp stable for all items.
         var okay =
-            from workflow in workflows.OfType<Workflow.Okay>()
+            from workflow in workflows
             let next = workflow.Trigger.FiresAt(utcNow).Take(3).Select(x => x.ToLocalTime())
             orderby next.FirstOrDefault(), workflow.Spec.Path.Directory, workflow.Spec.Path.Workflow
             select new
@@ -48,10 +48,8 @@ public class ComposeWorkflowOverview
                     }
             };
 
-        var yuck =
-            from workflow in workflows.OfType<Workflow.Yuck>()
-            select new { workflow.Spec.Path, workflow.Spec.Issues };
 
-        return new { okay, yuck };
+
+        return new { okay };
     }
 }

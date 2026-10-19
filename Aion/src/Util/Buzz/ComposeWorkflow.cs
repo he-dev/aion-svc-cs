@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Aion.Meta.Logging.Wiretap;
@@ -19,86 +20,71 @@ public class ComposeWorkflow
     LoadLoggingPreset loadLoggingPreset
 )
 {
-    public async Task<Workflow> From(WorkflowPath workflowPath, WorkflowPatch patch)
+    public async Task<Workflow?> From(WorkflowPath workflowPath, WorkflowPatch patch)
     {
         using var scope = logger.BeginScopeWith(("aion.workflow.path", workflowPath.Workflow));
         logger.LogTrace("Composing workflow '{aion.workflow.path}'.", workflowPath.Workflow);
 
-        var profile = await loadWorkflowProfile.Where(workflowPath);
-        var spec = await loadWorkflowSpec.FromFile(workflowPath, profile as WorkflowProfile.Okay ?? new WorkflowProfile.Okay());
+        var spec = await loadWorkflowSpec.FromJson(workflowPath);
 
-        if (spec is WorkflowSpec.Okay okay)
+        if (spec is null)
         {
-            // meta: Create a partial workflow first so that we can use the Mode property for variables.
-            var workflow = new Workflow.Okay
-            {
-                Spec = okay,
-                Enabled = !okay.Disabled || patch.Force,
-                Logger = okay.Logger is null ? Serilog.Core.Logger.None : await loadLoggingPreset.Where(okay.Logger),
-                Trigger = patch.Trigger ?? CreateWorkflowTrigger.Cron(spec.Path, okay.Cron),
-                Variables = okay.Variables.ToImmutableDictionary(),
-                Steps = []
-            };
+            return null;
+        }
 
-            var variableGroups = ImmutableList<IVariableGroup>.Empty.AddRange
-            ([
-                new SchedulerVariableGroup
-                {
-                    Home = schedulerOptions.Value.Home,
-                    Name = schedulerOptions.Value.Name,
-                },
-                new WorkflowVariableGroup(workflow.Variables)
-                {
-                    Path = spec.Path,
-                    Mode = workflow.Mode,
-                }
-            ]);
+        spec += await loadWorkflowProfile.WhereOrEmpty(workflowPath);
 
-            workflow = workflow with
-            {
-                Steps = [.. okay.Steps.Select(step => CreateStep(step, variableGroups))]
-            };
+        // meta: Create a partial workflow first so that we can use the Mode property for variables.
+        var workflow = new Workflow
+        {
+            Spec = spec,
+            Enabled = !spec.Disabled,
+            Logger = spec.Logger is null ? Serilog.Core.Logger.None : await loadLoggingPreset.Where(spec.Logger),
+            Trigger = CreateWorkflowTrigger.Cron(spec.Path, spec.Cron),
+            Variables = spec.Variables.ToImmutableDictionary(),
+            Steps = []
+        } + patch;
 
-            if (patch.Steps.Any())
+        var variableGroups = ImmutableList<IVariableGroup>.Empty.AddRange
+        ([
+            new SchedulerVariableGroup
             {
-                workflow = workflow with
-                {
-                    Steps =
-                    [
-                        ..
-                        from step in workflow.Steps.OfType<Workflow.Step.Okay>()
-                        where patch.Steps.Contains(step.Name)
-                        select step
-                    ]
-                };
+                Home = schedulerOptions.Value.Home,
+                Name = schedulerOptions.Value.Name,
+            },
+            new WorkflowVariableGroup(workflow.Variables)
+            {
+                Path = spec.Path,
+                Mode = workflow.Mode,
             }
+        ]);
 
+        var steps = spec.Steps.Select(step => CreateStep(step, variableGroups)).ToLookup(step => step is null);
 
-            return workflow;
-        }
-
-        if (spec is WorkflowSpec.Yuck yuck)
+        if (steps[true].Any())
         {
-            return new Workflow.Yuck
-            {
-                Spec = yuck
-            };
+            return null;
         }
 
-        throw new InvalidOperationException($"Unsupported workflow spec: {spec.GetType().Name}");
+        workflow = workflow with
+        {
+            Steps = [.. steps[false].Select(s => s!)]
+        };
+
+        return workflow;
     }
 
-    private Workflow.Step CreateStep
+    private Workflow.Step? CreateStep
     (
         WorkflowSpec.Step spec,
         IImmutableList<IVariableGroup> variables
     )
     {
-        using var scope = logger.BeginScopeFrom(new { StepIndex = spec.Index });
         variables = variables.Add(new StepVariableGroup { Index = spec.Index, Name = spec.Name });
+
         try
         {
-            return new Workflow.Step.Okay
+            var step = new Workflow.Step
             {
                 Spec = spec,
                 Enabled = !spec.Disabled,
@@ -107,23 +93,23 @@ public class ComposeWorkflow
                 FileName = spec.FileName.Render(variables),
                 Arguments = traceId =>
                 {
-                    variables = variables.Add(new ExecutionVariableGroup { TraceId = traceId });
-                    return spec.Arguments?.Select(argument => argument.Render(variables)).ToArray() ?? [];
+                    var local = variables.Add(new ExecutionVariableGroup { TraceId = traceId });
+                    return [.. spec.Arguments.Select(argument => argument.Render(local))];
                 },
                 Environment = spec.Environment.ToImmutableDictionary(x => x.Key, x => x.Value.Render(variables)),
                 WorkingDirectory = (spec.WorkingDirectory ?? string.Empty).Render(variables),
                 Timeout = spec.Timeout,
             };
+
+            // core: Execute arguments with a random trace ID to ensure that it works.
+            step.Arguments(ActivityTraceId.CreateRandom().ToString());
+
+            return step;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to render step {StepIndex}.", spec.Index);
-            return new Workflow.Step.Yuck
-            {
-                Spec = spec,
-                Index = spec.Index,
-                Issues = [$"Failed to render step: {ex.Message}"]
-            };
+            logger.Buzz.LogError(ex, "Failed to create step {aion.workflow.step.index}: {aion.workflow.step.exception:l}.", spec.Index, ex.Message);
+            return null;
         }
     }
 }

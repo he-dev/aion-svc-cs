@@ -20,7 +20,7 @@ public class ExecuteWorkflow
 {
     public async Task Now
     (
-        Workflow.Okay workflow,
+        Workflow workflow,
         ExecuteWorkflowProgress progress,
         CancellationToken cancellationToken = default
     )
@@ -39,17 +39,13 @@ public class ExecuteWorkflow
         {
             foreach (var step in workflow.Steps)
             {
-                switch (step)
+                if (step.Enabled)
                 {
-                    case Workflow.Step.Okay { Enabled: true } okay:
-                        progress.Report(await executeStep.Now(okay, cancellationToken));
-                        break;
-                    case Workflow.Step.Okay okay:
-                        activity.Core.LogInformation("Skipping step {aion.workflow.step.index} because it is disabled.", okay.Spec.Index);
-                        break;
-                    case Workflow.Step.Yuck yuck:
-                        activity.Core.LogInformation("Skipping step {aion.workflow.step.index} because it is yuck.", yuck.Spec.Index);
-                        break;
+                    await executeStep.Now(step, cancellationToken);
+                }
+                else
+                {
+                    activity.Core.LogInformation("Skipping step {aion.workflow.step.index} because it is disabled.", step.Index);
                 }
             }
 

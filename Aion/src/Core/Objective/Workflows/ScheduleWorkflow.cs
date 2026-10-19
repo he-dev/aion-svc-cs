@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Aion.Core.Interface.Jobs;
 using Aion.Meta.Logging.Wiretap;
+using Aion.Meta.Serilog;
 using Aion.Util.Buzz;
 using Aion.Util.Data;
 using Aion.Util.Data.Scheduler;
@@ -18,6 +20,7 @@ public class ScheduleWorkflow
 (
     ILogger<ScheduleWorkflow> logger,
     IOptions<SchedulerOptions> schedulerOptions,
+    ObservableSink observableSink,
     ISchedulerFactory schedulerFactory,
     FindWorkflows findWorkflows,
     ComposeWorkflow composeWorkflow
@@ -26,21 +29,21 @@ public class ScheduleWorkflow
     // https://www.quartz-scheduler.net/documentation/quartz-3.x/quick-start.html
 
     // note: This can only succeed, otherwise it throws an exception.
-    public async Task<ScheduleChange> At<T>(ITrigger trigger) where T : Workflow
+    public async Task<bool> At(ITrigger trigger)
     {
-        using var scope = logger.BeginScopeWith(("aion.workflow.trigger.key", trigger.Key.ToString()));
+        using var scope = logger.BeginActivity<ScheduleWorkflow>(("aion.workflow.trigger.key", trigger.Key.ToString()));
         var scheduler = await schedulerFactory.GetScheduler();
 
-        if (typeof(T) == typeof(Workflow.Yuck))
-        {
-            if (await scheduler.DeleteJob(trigger.JobKey))
-            {
-                logger.Buzz.LogDebug("Trigger '{aion.workflow.trigger.key}' has been deleted because it is yuck.");
-                return new ScheduleChange.DeleteBecauseIssues();
-            }
-
-            return new ScheduleChange.NoopBecauseNotScheduled();
-        }
+        // if (typeof(T) == typeof(Workflow.Yuck))
+        // {
+        //     if (await scheduler.DeleteJob(trigger.JobKey))
+        //     {
+        //         logger.Buzz.LogDebug("Trigger '{aion.workflow.trigger.key}' has been deleted because it is yuck.");
+        //         return new ScheduleChange.DeleteBecauseIssues();
+        //     }
+        //
+        //     return new ScheduleChange.NoopBecauseNotScheduled();
+        // }
 
         var jobDetail =
             JobBuilder
@@ -57,32 +60,32 @@ public class ScheduleWorkflow
                 // core: Compare the cron expressions.
                 if (cronTrigger is { CronExpressionString: { } otherCron } && currentCron.Equals(otherCron))
                 {
-                    logger.Buzz.LogDebug("Trigger '{aion.workflow.trigger.key}' has not changed.");
-                    return new ScheduleChange.NoopBecauseNoChanges();
+                    logger.Buzz.LogInformation("Trigger '{aion.workflow.trigger.key}' has not changed.");
+                    return false;
                 }
 
                 using var cronScope = logger.BeginScopeWith(("aion.workflow.trigger.cron", cronTrigger.CronExpressionString));
-                logger.Buzz.LogDebug("Trigger '{aion.workflow.trigger.key}' has a new schedule: {aion.workflow.trigger.cron}.");
+                logger.Buzz.LogInformation("Trigger '{aion.workflow.trigger.key}' has a new schedule: {aion.workflow.trigger.cron}.");
             }
             else
             {
                 logger.Buzz.LogError("Trigger '{aion.workflow.trigger.key}' not found.");
-                return new ScheduleChange.NoopBecauseTriggerNotFound();
+                return false;
             }
         }
 
         if (await scheduler.RescheduleJob(trigger.Key, trigger) is { } next)
         {
             using var _ = logger.BeginScopeWith(("aion.workflow.trigger.next", next));
-            logger.Buzz.LogDebug("Trigger '{aion.workflow.trigger.key}' rescheduled. Next execution at '{aion.workflow.trigger.next}'.");
-            return new ScheduleChange.RescheduleBecauseChanged(next);
+            logger.Buzz.LogInformation("Trigger '{aion.workflow.trigger.key}' rescheduled. Next execution at '{aion.workflow.trigger.next}'.");
+            return true;
         }
         else
         {
             var nextNew = await scheduler.ScheduleJob(jobDetail, trigger);
             using var _ = logger.BeginScopeWith(("aion.workflow.trigger.next", nextNew));
-            logger.Buzz.LogDebug("Trigger '{aion.workflow.trigger.key}' scheduled. Next execution at '{aion.workflow.trigger.next}'.");
-            return new ScheduleChange.ScheduleBecauseNew(nextNew);
+            logger.Buzz.LogInformation("Trigger '{aion.workflow.trigger.key}' scheduled. Next execution at '{aion.workflow.trigger.next}'.");
+            return true;
         }
     }
 
@@ -98,10 +101,10 @@ public class ScheduleWorkflow
         {
             foreach (var workflowPath in findWorkflows.Where())
             {
-                if (await composeWorkflow.From(workflowPath, WorkflowPatch.Empty) is Workflow.Okay workflow)
+                if (await composeWorkflow.From(workflowPath, WorkflowPatch.Empty) is { } workflow)
                 {
                     // todo: Log schedule changes.
-                    var scheduleChange = await At<Workflow.Okay>(workflow.Trigger);
+                    var scheduleChange = await At(workflow.Trigger);
                 }
             }
 
@@ -117,28 +120,5 @@ public class ScheduleWorkflow
     }
 }
 
-public abstract record ScheduleChange(DateTimeOffset? Next = null)
-{
-    public string Reason => GetType().Name;
 
-    public record NoopBecauseNotScheduled : ScheduleChange;
 
-    public record NoopBecauseNoChanges : ScheduleChange;
-
-    public record NoopBecauseTriggerNotFound : ScheduleChange;
-
-    public record DeleteBecauseIssues : ScheduleChange;
-
-    public record DeleteBecauseDisabled : ScheduleChange;
-
-    public record DeleteBecauseEmpty : ScheduleChange;
-
-    public record ScheduleBecauseNew(DateTimeOffset? Next) : ScheduleChange(Next);
-
-    public record RescheduleBecauseChanged(DateTimeOffset? Next) : ScheduleChange(Next);
-}
-
-public class SynchronizeWorkflowProgress : List<ScheduleChange>, IProgress<ScheduleChange>
-{
-    public void Report(ScheduleChange value) => Add(value);
-}
