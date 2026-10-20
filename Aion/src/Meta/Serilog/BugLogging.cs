@@ -3,40 +3,45 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 using Serilog.Core;
 using Serilog.Events;
+using Serilog.Formatting;
 using Serilog.Formatting.Display;
 
 namespace Aion.Meta.Serilog;
 
-public sealed class ObservableSink : ILogEventSink, IObservable<LogEvent>
+public sealed class BugLogging : ILogEventSink, IObservable<LogEvent>
 {
     private const byte Dummy = 0;
 
     // util: Uses a ConcurrentDictionary as a thread-safe set of observers.
-    private ConcurrentDictionary<IObserver<LogEvent>, byte> Observers { get; } = new(ReferenceEqualityComparer.Instance);
+    private ConcurrentDictionary<IObserver<LogEvent>, byte> Bugs { get; } = new(ReferenceEqualityComparer.Instance);
 
     public void Emit(LogEvent logEvent)
     {
-        foreach (var (observer, _) in Observers)
+        foreach (var (observer, _) in Bugs)
         {
             observer.OnNext(logEvent);
         }
     }
 
-    public IDisposable Subscribe(IObserver<LogEvent> observer)
+    IDisposable IObservable<LogEvent>.Subscribe(IObserver<LogEvent> observer) => With(observer);
+
+    public IDisposable With(IObserver<LogEvent> bug)
     {
-        ArgumentNullException.ThrowIfNull(observer);
+        ArgumentNullException.ThrowIfNull(bug);
 
         return
-            Observers.TryAdd(observer, Dummy)
-                ? new Subscription(() => Observers.TryRemove(observer, out _))
+            Bugs.TryAdd(bug, Dummy)
+                ? new Subscription(() => Bugs.TryRemove(bug, out _))
                 // core: Duplicate subscription is not allowed.
                 : throw new InvalidOperationException("Observer is already subscribed.");
     }
+
 
     private class Subscription(Action unsubscribe) : IDisposable
     {
@@ -46,12 +51,12 @@ public sealed class ObservableSink : ILogEventSink, IObservable<LogEvent>
     }
 }
 
-public class LogEventObserver(Func<IDictionary<string, object>, IDisposable?> beginScope)
+public class InMemoryBug(Func<IDictionary<string, object>, IDisposable?> beginScope)
     : IObserver<LogEvent>, IEnumerable<LogEvent>, IDisposable
 {
     private ConcurrentQueue<LogEvent> Queue { get; } = new();
 
-    private LogEventObserverScope Scope { get; } = new(beginScope);
+    private LogEventBugScope Scope { get; } = new(beginScope);
 
     public void OnCompleted() { }
 
@@ -72,7 +77,7 @@ public class LogEventObserver(Func<IDictionary<string, object>, IDisposable?> be
     public void Dispose() => Scope.Dispose();
 }
 
-internal sealed class LogEventObserverScope : IDisposable
+internal sealed class LogEventBugScope : IDisposable
 {
     private const string PropertyName = "meta.observable.scopes";
 
@@ -85,7 +90,7 @@ internal sealed class LogEventObserverScope : IDisposable
 
     private IDisposable? Scope { get; }
 
-    public LogEventObserverScope(Func<IDictionary<string, object>, IDisposable?> beginScope)
+    public LogEventBugScope(Func<IDictionary<string, object>, IDisposable?> beginScope)
     {
         ArgumentNullException.ThrowIfNull(beginScope);
 
@@ -105,7 +110,12 @@ internal sealed class LogEventObserverScope : IDisposable
 
     public bool Matches(LogEvent logEvent)
     {
-        return logEvent.Properties.TryGetValue(PropertyName, out var property) && property is SequenceValue ids && ids.Elements.Any(value => value is ScalarValue { Value: string id } && id == Id);
+        return
+            logEvent
+                .Properties
+                .TryGetValue(PropertyName, out var property)
+            && property is SequenceValue ids
+            && ids.Elements.Any(value => value is ScalarValue { Value: string id } && id == Id);
     }
 
     public void Dispose()
@@ -118,31 +128,45 @@ internal sealed class LogEventObserverScope : IDisposable
     }
 }
 
-public static class LogEventObserverExtensions
+public static class LogEventBugExtensions
 {
-    public static IEnumerable<LogEvent> AtLeastErrors(this LogEventObserver observer)
+    public static IEnumerable<LogEvent> AtLeastErrors(this IEnumerable<LogEvent> bug)
     {
-        return observer.Where(e => e.Level >= LogEventLevel.Error);
+        return bug.Where(e => e.Level >= LogEventLevel.Error);
     }
 
-    public static IEnumerable<LogEvent> AtLeastWarnings(this LogEventObserver observer)
+    public static IEnumerable<LogEvent> AtLeastWarnings(this IEnumerable<LogEvent> bug)
     {
-        return observer.Where(e => e.Level >= LogEventLevel.Warning);
+        return bug.Where(e => e.Level >= LogEventLevel.Warning);
     }
 
-    public static IEnumerable<LogEvent> AtLeastInformations(this LogEventObserver observer)
+    public static IEnumerable<LogEvent> AtLeastInformations(this IEnumerable<LogEvent> bug)
     {
-        return observer.Where(e => e.Level >= LogEventLevel.Information);
+        return bug.Where(e => e.Level >= LogEventLevel.Information);
     }
 
     public static IEnumerable<string> Messages(this IEnumerable<LogEvent> events)
     {
-        var formatter = new MessageTemplateTextFormatter("");
         return events.Select(e => e.RenderMessage());
     }
 
-    public static LogEventObserver BeginLogEventObserver(this ILogger logger)
+    public static IEnumerable<string> Format(this IEnumerable<LogEvent> events, ITextFormatter formatter)
     {
-        return new LogEventObserver(logger.BeginScope);
+        return events.Select(e =>
+        {
+            using var writer = new StringWriter();
+            formatter.Format(e, writer);
+            return writer.ToString();
+        });
+    }
+
+    public static IEnumerable<string> Format(this IEnumerable<LogEvent> events, string template, IFormatProvider? formatProvider = null)
+    {
+        return events.Format(new MessageTemplateTextFormatter(template, formatProvider));
+    }
+
+    public static InMemoryBug BugLogging(this ILogger logger)
+    {
+        return new InMemoryBug(logger.BeginScope);
     }
 }

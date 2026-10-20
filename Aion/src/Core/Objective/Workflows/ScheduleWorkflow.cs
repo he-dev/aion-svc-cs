@@ -20,7 +20,7 @@ public class ScheduleWorkflow
 (
     ILogger<ScheduleWorkflow> logger,
     IOptions<SchedulerOptions> schedulerOptions,
-    ObservableSink observableSink,
+    BugLogging bugLogging,
     ISchedulerFactory schedulerFactory,
     FindWorkflows findWorkflows,
     ComposeWorkflow composeWorkflow

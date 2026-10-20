@@ -13,7 +13,7 @@ namespace Aion.Core.Interface.Jobs;
 internal class WorkflowPollingJob
 (
     ILogger<WorkflowPollingJob> logger,
-    ObservableSink observableSink,
+    BugLogging bugLogging,
     ScheduleWorkflow scheduleWorkflow
 ) : IJob
 {
@@ -27,8 +27,6 @@ internal class WorkflowPollingJob
 
         logger.Buzz.Zero.LogDebug("Executing '{aion.job.group}:{aion.job.name}'.", context.JobDetail.Key.Group, context.JobDetail.Key.Name);
 
-        using var scheduleLog = logger.BeginLogEventObserver();
-        using var unsubscribe = observableSink.Subscribe(scheduleLog);
         try
         {
             await scheduleWorkflow.Directory();

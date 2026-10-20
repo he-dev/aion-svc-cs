@@ -78,17 +78,17 @@ public static class WorkflowsEndpoint
 
     private static async Task<IResult> Synchronize([AsParameters] SynchronizeRequest parameters)
     {
-        using var scheduleLog = parameters.Logger.BeginLogEventObserver();
-        using var unsubscribe = parameters.ObservableSink.Subscribe(scheduleLog);
+        using var inMemoryBug = new InMemoryBug(parameters.Logger.BeginScope);
+        using var unsubscribe = parameters.BugLogging.With(inMemoryBug);
 
         await parameters.ScheduleWorkflow.Directory();
-        if (scheduleLog.AtLeastErrors().Messages().ToList() is { Count: > 0 } errors)
+        if (inMemoryBug.AtLeastErrors().ToList() is { Count: > 0 } errors)
         {
-            return Results.Ok(new { errors });
+            return Results.Ok(new { errors = errors.Format("[{Level:u3}] {Message:lj}") });
         }
         else
         {
-            return Results.Ok(new { results = scheduleLog.AtLeastInformations().Messages().ToList() });
+            return Results.Ok(new { results = inMemoryBug.AtLeastInformations().Messages().ToList() });
         }
     }
 }
@@ -103,7 +103,7 @@ public struct StartRequest
 public struct SynchronizeRequest
 {
     public ILogger<SynchronizeRequest> Logger { get; init; }
-    public ObservableSink ObservableSink { get; init; }
+    public BugLogging BugLogging { get; init; }
     public ScheduleWorkflow ScheduleWorkflow { get; init; }
 }
 
