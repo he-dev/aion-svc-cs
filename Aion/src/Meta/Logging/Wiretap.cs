@@ -16,10 +16,10 @@ public record LoggerProperty(string Name, object? Value)
     public static implicit operator (string Name, object? Value)(LoggerProperty state) => (state.Name, state.Value);
 }
 
-public record Pulse(object? Value) : LoggerProperty($"{Wiretap.AppName}.activity.pulse", Value)
+public record Story(object? Value) : LoggerProperty($"{Wiretap.AppName}.activity.story", Value)
 {
-    public static Pulse Core { get; } = new("core");
-    public static Pulse Buzz { get; } = new("buzz");
+    public static Story User { get; } = new("user");
+    public static Story System { get; } = new("system");
 }
 
 public record Event(object? Value) : LoggerProperty($"{Wiretap.AppName}.activity.event", Value)
@@ -213,8 +213,8 @@ public static class LoggerExtensions
 
         public IPropertyLogger With(LoggerProperty property) => new PropertyLogger(logger, property);
 
-        public IPropertyLogger Core => logger.With(Pulse.Core);
-        public IPropertyLogger Buzz => logger.With(Pulse.Buzz);
+        public IPropertyLogger User => logger.With(Story.User);
+        public IPropertyLogger System => logger.With(Story.System);
     }
 
     extension(IPropertyLogger propertyLogger)

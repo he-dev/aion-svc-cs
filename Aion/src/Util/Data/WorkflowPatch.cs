@@ -1,5 +1,4 @@
-﻿using System;
-using Quartz;
+﻿using Quartz;
 
 namespace Aion.Util.Data;
 

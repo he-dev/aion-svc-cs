@@ -46,7 +46,7 @@ public class LoadWorkflowProfile
 
         if (!File.Exists(profilePath))
         {
-            logger.Buzz.LogError("Cannot load workflow-profile from '{aion.profile.path}' because it does not exist.", profilePath);
+            logger.System.LogError("Cannot load workflow-profile from '{aion.profile.path}' because it does not exist.", profilePath);
             return null;
         }
 
@@ -66,7 +66,7 @@ public class LoadWorkflowProfile
 
             if (profile is null)
             {
-                logger.Buzz.LogError("File '{aion.profile.path}' is empty. It needs to contain a workflow-profile.");
+                logger.System.LogError("File '{aion.profile.path}' is empty. It needs to contain a workflow-profile.");
                 return null;
             }
 
@@ -74,7 +74,7 @@ public class LoadWorkflowProfile
             {
                 foreach (var issue in issues)
                 {
-                    logger.Buzz.LogError("{aion.profile.issue}", issue);
+                    logger.System.LogError("{aion.profile.issue}", issue);
                 }
 
                 return null;

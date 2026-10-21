@@ -10,7 +10,7 @@ namespace Aion.Util.Buzz;
 
 public class StartProcess(ILogger<StartProcess> logger)
 {
-    public async Task<StartProcessResult> Now
+    public async Task<int?> Invoke
     (
         string fileName,
         string arguments,
@@ -20,11 +20,6 @@ public class StartProcess(ILogger<StartProcess> logger)
         CancellationToken cancellationToken = default
     )
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return new StartProcessResult(fileName) { Cancelled = true };
-        }
-
         // core: Set the timeout for the process.
         // meta: This might throw on timeout out of range, so let's initialize it first.
         using var timeoutCts = new CancellationTokenSource(timeout);
@@ -50,45 +45,40 @@ public class StartProcess(ILogger<StartProcess> logger)
             process.StartInfo.Environment[name] = value;
         }
 
-        // util: Let's measure the execution time.
-        var stopwatch = Stopwatch.StartNew();
-
         var stdOutCompletion = new TaskCompletionSource<bool>();
         var stdErrCompletion = new TaskCompletionSource<bool>();
 
         process.OutputDataReceived += (_, e) => { OnDataReceived(e, stdOutCompletion, ConsoleStreamType.StdOut); };
         process.ErrorDataReceived += (_, e) => { OnDataReceived(e, stdErrCompletion, ConsoleStreamType.StdErr); };
 
-        var commandLine = $"{process.StartInfo.FileName} {process.StartInfo.Arguments}".Trim();
-
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return new StartProcessResult(fileName) { Cancelled = true };
-        }
+        cancellationToken.ThrowIfCancellationRequested();
 
         try
         {
-            logger.Buzz.Okay.LogInformation("Executing '{aion.workflow.step.command_line}'.", commandLine);
-
             if (process.Start())
             {
-                if (logger.IsEnabled(LogLevel.Debug))
+                try
                 {
-                    try
-                    {
-                        // util: This is a convenience ready-to-use command for killing the process.
-                        logger.LogDebug
-                        (
-                            "taskkill /F /FI \"PID eq {PID}\" /FI \"SESSION eq {SID}\" /FI \"IMAGENAME eq {ImageName}\" /FI \"SERVICES eq false\"",
-                            process.Id,
-                            process.SessionId,
-                            process.ProcessName
-                        );
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        // meta: The process exited before its diagnostic details could be read.
-                    }
+                    logger.User.LogInformation
+                    (
+                        "Process {aion.workflow.process.id} started by '{aion.workflow.process.file_name}' with arguments '{aion.workflow.process.arguments}'.",
+                        process.Id,
+                        process.StartInfo.FileName,
+                        process.StartInfo.Arguments
+                    );
+
+                    // util: This is a convenience ready-to-use command for killing the process.
+                    logger.System.LogDebug
+                    (
+                        "taskkill /F /FI \"PID eq {aion.workflow.process.id}\" /FI \"SESSION eq {aion.workflow.process.sid}\" /FI \"IMAGENAME eq {aion.workflow.process.image_name}\" /FI \"SERVICES eq false\"",
+                        process.Id,
+                        process.SessionId,
+                        process.ProcessName
+                    );
+                }
+                catch (InvalidOperationException)
+                {
+                    // meta: The process exited before its diagnostic details could be read.
                 }
 
                 // core: Background processes are not allowed to expect any input. Not respecting the EOF means for them, they're gonna hit the timeout.
@@ -101,71 +91,46 @@ public class StartProcess(ILogger<StartProcess> logger)
                 await process.WaitForExitAsync(linkedCts.Token);
                 await Task.WhenAll(stdOutCompletion.Task, stdErrCompletion.Task).WaitAsync(linkedCts.Token);
 
-                switch (process.ExitCode)
-                {
-                    case 0: logger.Buzz.Last.LogInformation("Process '{aion.workflow.step.command_line}' completed in {aion.workflow.step.duration_ms:N0} ms.", commandLine, stopwatch.Elapsed.TotalMilliseconds); break;
-                    default: logger.Buzz.Last.LogInformation("Process '{aion.workflow.step.command_line}' failed after {aion.workflow.step.duration_ms:N0} ms with exit-code {aion.workflow.step.exit_code}.", commandLine, stopwatch.Elapsed.TotalMilliseconds, process.ExitCode); break;
-                }
-
-                return new StartProcessResult(commandLine)
-                {
-                    ExitCode = process.ExitCode,
-                    Duration = stopwatch.Elapsed
-                };
+                return process.ExitCode;
             }
-
-            // core: Zero duration means the process was not started.
-            return new StartProcessResult(commandLine);
         }
         catch (OperationCanceledException)
         {
-            var result = new StartProcessResult(commandLine)
-            {
-                ExitCode = process.HasExited ? process.ExitCode : null,
-                Cancelled = cancellationToken.IsCancellationRequested,
-                TimedOut = timeoutCts.IsCancellationRequested,
-                Duration = stopwatch.Elapsed
-            };
-
-            if (cancellationToken.IsCancellationRequested)
-            {
-                logger.Buzz.LogInformation("Process '{aion.workflow.step.command_line}' was cancelled after {aion.workflow.step.duration_ms:N0} ms.", commandLine, stopwatch.Elapsed.TotalMilliseconds);
-            }
-
             if (timeoutCts.IsCancellationRequested)
             {
-                logger.Buzz.LogWarning("Process '{aion.workflow.step.command_line}' timed out after {aion.workflow.step.duration_ms:N0} ms.", commandLine, stopwatch.Elapsed.TotalMilliseconds);
+                logger.User.LogWarning("Process {aion.workflow.process.id} timed out after {aion.workflow.process.timeout_s} s.", process.Id, timeout.TotalSeconds);
             }
 
+            var graceTimeout = TimeSpan.FromSeconds(10);
             try
             {
                 if (!process.HasExited)
                 {
-                    var graceTimeout = TimeSpan.FromSeconds(10);
                     process.Kill(entireProcessTree: true);
                     // core: Let's give the process a chance to exit.
-                    logger.Buzz.LogDebug("Waiting {0} seconds for process '{1}' to exit.", graceTimeout.TotalSeconds, commandLine);
+                    logger.System.LogDebug("Waiting {aion.workflow.process.kill_timeout_s} s for process {aion.workflow.process.id} to exit.", graceTimeout.TotalSeconds, process.Id);
                     using var cleanupCts = new CancellationTokenSource(graceTimeout);
                     await process.WaitForExitAsync(cleanupCts.Token);
-                    logger.Buzz.LogWarning("Process '{aion.workflow.step.command_line}' was killed.", commandLine);
+                    logger.System.LogInformation("Process {aion.workflow.process.id} was killed.", process.Id);
                 }
             }
             catch (OperationCanceledException)
             {
-                logger.Buzz.LogWarning("Termination of process '{aion.workflow.step.command_line}' could not be confirmed within 7 seconds after the kill request.", commandLine);
+                logger.System.LogWarning("Process {aion.workflow.process.id} termination could not be confirmed within {aion.workflow.process.kill_timeout_s} s after the kill request.", process.Id, graceTimeout.TotalSeconds);
             }
             catch (InvalidOperationException) when (process.HasExited)
             {
-                logger.Buzz.LogInformation("Process '{aion.workflow.step.command_line}' had already exited.", commandLine);
+                logger.System.LogInformation("Process {aion.workflow.process.id} had already exited.", process.Id);
             }
             catch (Exception ex)
             {
-                logger.Buzz.LogError(ex, "Unable to kill '{aion.workflow.step.command_line}'.", commandLine);
-                throw;
+                logger.System.LogError(ex, "Unable to kill process {aion.workflow.process.id}.", process.Id);
             }
 
-            return result;
+            cancellationToken.ThrowIfCancellationRequested();
         }
+
+        return null;
     }
 
     // util: Let's not write this code twice...
@@ -175,25 +140,17 @@ public class StartProcess(ILogger<StartProcess> logger)
         if (e.Data is null)
         {
             stdStreamCompletion.TrySetResult(true);
-            logger.Buzz.LogTrace("End of console stream.");
+            logger.System.LogDebug("End of console stream.");
         }
         else
         {
             switch (consoleStreamType)
             {
-                case ConsoleStreamType.StdOut: logger.Buzz.LogInformation("{StdOut}: {aion.workflow.step.stdout}", e.Data, consoleStreamType); break;
-                case ConsoleStreamType.StdErr: logger.Buzz.LogError("{StdErr}: {aion.workflow.step.stderr}", e.Data, consoleStreamType); break;
+                case ConsoleStreamType.StdOut: logger.User.LogInformation("{StdOut}: {aion.workflow.process.stdout}", consoleStreamType, e.Data); break;
+                case ConsoleStreamType.StdErr: logger.User.LogError("{StdErr}: {aion.workflow.process.stderr}", consoleStreamType, e.Data); break;
             }
         }
     }
-}
-
-public record StartProcessResult(string CommandLine)
-{
-    public int? ExitCode { get; init; }
-    public bool Cancelled { get; init; }
-    public bool? TimedOut { get; init; }
-    public TimeSpan Duration { get; init; }
 }
 
 // core: Allows us to distinguish the source of various log entries.

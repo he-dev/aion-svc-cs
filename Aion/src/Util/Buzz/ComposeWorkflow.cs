@@ -55,7 +55,7 @@ public class ComposeWorkflow
             new WorkflowVariableGroup(workflow.Variables)
             {
                 Path = spec.Path,
-                Mode = workflow.Mode,
+                TriggerMode = workflow.TriggerMode,
             }
         ]);
 
@@ -108,7 +108,7 @@ public class ComposeWorkflow
         }
         catch (Exception ex)
         {
-            logger.Buzz.LogError(ex, "Failed to create step {aion.workflow.step.index}: {aion.workflow.step.exception:l}.", spec.Index, ex.Message);
+            logger.System.LogError(ex, "Failed to create step {aion.workflow.step.index}: {aion.workflow.step.exception:l}.", spec.Index, ex.Message);
             return null;
         }
     }

@@ -38,7 +38,7 @@ public class TestExecuteWorkflow(TestWebApplication testWebApplication) : IClass
         var workflowPath = findWorkflows.Single(new WorkflowSearchCriteria(profile, testCase));
         var workflowTemplate = await WorkflowSpec.FromFile(workflowPath);
         var workflow = await createWorkflow.From(workflowTemplate);
-        var actual = await executeWorkflow.Now(workflow);
+        var actual = await executeWorkflow.Invoke(workflow);
         var expected = WorkflowTestCase.Parse(testCase).ToList();
 
         Assert.Equal(expected.Count, actual.Count);

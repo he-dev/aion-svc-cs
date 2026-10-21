@@ -1,7 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-
-namespace Aion.Meta;
+﻿namespace Aion.Meta;
 
 public static class DictionaryExtensions
 {

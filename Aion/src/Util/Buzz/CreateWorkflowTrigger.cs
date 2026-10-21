@@ -10,7 +10,7 @@ public static class CreateWorkflowTrigger
     private static ITrigger Create
     (
         WorkflowPath workflowPath,
-        WorkflowMode workflowMode,
+        WorkflowTriggerMode workflowTriggerMode,
         Action<TriggerBuilder<IJob>> customize
     )
     {
@@ -22,11 +22,11 @@ public static class CreateWorkflowTrigger
                 .Create()
                 .ForJob(jobKey)
                 // core: Cron and User triggers are different triggers.
-                .WithIdentity($"{workflowPath.Workflow}:{workflowMode}", group)
+                .WithIdentity($"{workflowPath.Workflow}:{workflowTriggerMode}", group)
                 .UsingJobData(new JobDataMap
                 {
                     { nameof(WorkflowPath), workflowPath },
-                    { nameof(WorkflowMode), workflowMode }
+                    { nameof(WorkflowTriggerMode), workflowTriggerMode }
                 });
         customize(builder);
         return builder.Build();
@@ -39,7 +39,7 @@ public static class CreateWorkflowTrigger
     ) => Create
     (
         workflowPath,
-        WorkflowMode.Cron,
+        WorkflowTriggerMode.Cron,
         builder => builder.WithCronSchedule(cronExpression)
     );
 
@@ -50,7 +50,7 @@ public static class CreateWorkflowTrigger
     ) => Create
     (
         workflowPath,
-        WorkflowMode.User,
+        WorkflowTriggerMode.User,
         builder => builder.StartAt(startAtUtc).WithSimpleSchedule(x => x.WithRepeatCount(0))
     );
 

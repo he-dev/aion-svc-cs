@@ -15,7 +15,7 @@ public record Workflow
     // core: Use a trigger that is always in the past to satisfy the null-object pattern and keep it harmless.
     public required ITrigger Trigger { get; init; }
 
-    public WorkflowMode Mode => Trigger is ICronTrigger ? WorkflowMode.Cron : WorkflowMode.User;
+    public WorkflowTriggerMode TriggerMode => Trigger is ICronTrigger ? WorkflowTriggerMode.Cron : WorkflowTriggerMode.User;
 
     public required IImmutableDictionary<string, string> Variables { get; init; }
 

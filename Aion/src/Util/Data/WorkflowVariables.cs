@@ -1,5 +1,4 @@
 ﻿using System.Collections.Immutable;
-using System.Diagnostics;
 using Aion.Util.Buzz;
 using Aion.Util.Data.Templating;
 
@@ -22,7 +21,7 @@ public class WorkflowVariableGroup : PropertyScriptObject, IVariableGroup
     }
 
     public required string Path { get; init; }
-    public required WorkflowMode Mode { get; init; }
+    public required WorkflowTriggerMode TriggerMode { get; init; }
 }
 
 public class StepVariableGroup : PropertyScriptObject, IVariableGroup

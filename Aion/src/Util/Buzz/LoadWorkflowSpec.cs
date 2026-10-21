@@ -23,7 +23,7 @@ public class LoadWorkflowSpec
 
         if (!File.Exists(workflowPath))
         {
-            logger.Buzz.Noop.LogError("Workflow '{aion.workflow.path}' does not exist.");
+            logger.System.Noop.LogError("Workflow '{aion.workflow.path}' does not exist.");
             return null;
         }
 
@@ -43,7 +43,7 @@ public class LoadWorkflowSpec
 
             if (json is null)
             {
-                logger.Buzz.Fail.LogError("Workflow '{aion.workflow.path}' is null or empty.");
+                logger.System.Fail.LogError("Workflow '{aion.workflow.path}' is null or empty.");
                 return null;
             }
 
@@ -51,7 +51,7 @@ public class LoadWorkflowSpec
             {
                 foreach (var issue in issues)
                 {
-                    logger.Buzz.LogError("{aion.workflow.issue}", issue);
+                    logger.System.LogError("{aion.workflow.issue}", issue);
                 }
             }
 
@@ -82,7 +82,7 @@ public class LoadWorkflowSpec
         }
         catch (Exception e)
         {
-            logger.Buzz.Fail.LogError(e, "An error occurred while deserializing '{aion.workflow.path}'.");
+            logger.System.Fail.LogError(e, "An error occurred while deserializing '{aion.workflow.path}'.");
             return null;
         }
     }

@@ -78,17 +78,17 @@ public static class WorkflowsEndpoint
 
     private static async Task<IResult> Synchronize([AsParameters] SynchronizeRequest parameters)
     {
-        using var inMemoryBug = new InMemoryBug(parameters.Logger.BeginScope);
+        var inMemoryBug = new InMemoryBug();
         using var unsubscribe = parameters.BugLogging.With(inMemoryBug);
 
         await parameters.ScheduleWorkflow.Directory();
-        if (inMemoryBug.AtLeastErrors().ToList() is { Count: > 0 } errors)
+        if (inMemoryBug.AtLeast(LogLevel.Error).ToList() is { Count: > 0 } errors)
         {
             return Results.Ok(new { errors = errors.Format("[{Level:u3}] {Message:lj}") });
         }
         else
         {
-            return Results.Ok(new { results = inMemoryBug.AtLeastInformations().Messages().ToList() });
+            return Results.Ok(new { results = inMemoryBug.AtLeast(LogLevel.Information).Format("[{Level:u3}] {Message:lj}").ToList() });
         }
     }
 }
