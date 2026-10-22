@@ -13,16 +13,16 @@ namespace Aion.Core.Objective.Workflows;
 public class ExecuteWorkflow
 (
     ILogger<ExecuteWorkflow> logger,
-    BugLogging bugLogging,
+    ForkLogging forkLogging,
     ExecuteStep executeStep
 )
 {
     public async Task Invoke(Workflow workflow, CancellationToken cancellationToken = default)
     {
-        using var loggerBug = bugLogging.With(new LoggerBug(workflow.Logger));
+        using var loggerBug = forkLogging.With(new LoggerFork(workflow.Logger));
         using var activity = logger.BeginActivity<ExecuteWorkflow>
         (
-            ("aion.workflow.path", workflow.Spec.Path.Workflow),
+            ("aion.workflow.path", workflow.Spec.Path.Name),
             ("aion.workflow.mode", workflow.TriggerMode)
         );
 

@@ -39,7 +39,7 @@ public class FindWorkflows
                 .Select(x => x.Path)
                 .Select(path => new WorkflowPath(workflowsDirectory.ToSlash(), path.ToSlash()))
                 .OrderBy(x => x.Directory)
-                .ThenBy(x => x.Workflow)
+                .ThenBy(x => x.Name)
                 .ToImmutableList();
 
         logger.LogDebug("Found {aion.workflows.count} workflows matching '{aion.workflow.pattern}'.", workflows.Count, pattern);

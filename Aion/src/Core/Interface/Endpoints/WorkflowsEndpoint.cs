@@ -34,94 +34,88 @@ public static class WorkflowsEndpoint
 
     // todo: use the return value of ScheduleWorkflow.Invoke.
 
-    private static async Task<IResult> StartNow([AsParameters] StartRequest parameters, [FromBody] WorkflowQuery body)
+    private static async Task<IResult> StartNow([AsParameters] ScheduleRequest parameters, [FromBody] WorkflowStartNowBody body)
     {
-        var changes = new List<object>();
-        foreach (var workflowPath in parameters.FindWorkflows.Where(body.Pattern))
+        var inMemoryFork = new InMemoryFork();
+        using var unsubscribe = parameters.ForkLogging.With(inMemoryFork);
+        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowPatch
         {
-            var trigger = CreateWorkflowTrigger.Simple(workflowPath, DateTimeOffset.UtcNow);
-            var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
-            var change = await parameters.ScheduleWorkflow.At(workflow.Trigger);
-            changes.Add(new { workflow.Spec.Path.Workflow, change });
-        }
-
-        return Results.Accepted($"/api/workflows", new { changes });
+            StartAt = DateTimeOffset.UtcNow,
+            Steps = body.Steps
+        });
+        return Results.Accepted($"/api/workflows", new { });
     }
 
-    private static async Task<IResult> StartIn([AsParameters] StartRequest parameters, [FromBody] WorkflowStartInBody body)
+    private static async Task<IResult> StartIn([AsParameters] ScheduleRequest parameters, [FromBody] WorkflowStartInBody body)
     {
-        var changes = new List<object>();
-        foreach (var workflowPath in parameters.FindWorkflows.Where(body.Pattern))
+        var inMemoryFork = new InMemoryFork();
+        using var unsubscribe = parameters.ForkLogging.With(inMemoryFork);
+        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowPatch
         {
-            var trigger = CreateWorkflowTrigger.Simple(workflowPath, DateTimeOffset.UtcNow + body.Wait);
-            var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
-            var change = await parameters.ScheduleWorkflow.At(workflow.Trigger);
-            changes.Add(new { workflow.Spec.Path.Workflow, change });
-        }
+            StartAt = DateTimeOffset.UtcNow + body.Wait,
+            Steps = body.Steps
+        });
 
-        return Results.Accepted($"/api/workflows", new { changes });
+        return Results.Accepted($"/api/workflows", new { });
     }
 
-    private static async Task<IResult> StartAt([AsParameters] StartRequest parameters, [FromBody] WorkflowStartAtBody body)
+    private static async Task<IResult> StartAt([AsParameters] ScheduleRequest parameters, [FromBody] WorkflowStartAtBody body)
     {
-        var changes = new List<object>();
-        foreach (var workflowPath in parameters.FindWorkflows.Where(body.Pattern))
+        var inMemoryFork = new InMemoryFork();
+        using var unsubscribe = parameters.ForkLogging.With(inMemoryFork);
+        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowPatch
         {
-            var trigger = CreateWorkflowTrigger.Simple(workflowPath, body.WhenUtc);
-            var workflow = await parameters.ComposeWorkflow.From(workflowPath, new WorkflowPatch { Trigger = trigger });
-            var change = await parameters.ScheduleWorkflow.At(workflow.Trigger);
-            changes.Add(new { workflow.Spec.Path.Workflow, change });
-        }
+            StartAt = body.WhenUtc,
+            Steps = body.Steps
+        });
 
-        return Results.Accepted($"/api/workflows", new { schedules = changes });
+        return Results.Accepted($"/api/workflows", new { });
     }
 
-    private static async Task<IResult> Synchronize([AsParameters] SynchronizeRequest parameters)
+    private static async Task<IResult> Synchronize([AsParameters] ScheduleRequest parameters)
     {
-        var inMemoryBug = new InMemoryBug();
-        using var unsubscribe = parameters.BugLogging.With(inMemoryBug);
+        var inMemoryFork = new InMemoryFork();
+        using var unsubscribe = parameters.ForkLogging.With(inMemoryFork);
 
-        await parameters.ScheduleWorkflow.Directory();
-        if (inMemoryBug.AtLeast(LogLevel.Error).ToList() is { Count: > 0 } errors)
-        {
-            return Results.Ok(new { errors = errors.Format("[{Level:u3}] {Message:lj}") });
-        }
-        else
-        {
-            return Results.Ok(new { results = inMemoryBug.AtLeast(LogLevel.Information).Format("[{Level:u3}] {Message:lj}").ToList() });
-        }
+        await parameters.ScheduleWorkflow.AsCron();
+
+        var results =
+            inMemoryFork
+                //.AtLeast(LogLevel.Error)
+                .GroupBy(e => e.TryGetScalar<string>("aion.workflow.path", out var key) ? key : "(unknown)", e => e, (workflow, events) => new { workflow, events = events.Format("[{Level:u3}] {Message:lj}").ToList() })
+                .ToList();
+
+        return Results.Ok(results);
     }
 }
 
-public struct StartRequest
+public struct ScheduleRequest
 {
-    public FindWorkflows FindWorkflows { get; init; }
-    public ComposeWorkflow ComposeWorkflow { get; init; }
-    public ScheduleWorkflow ScheduleWorkflow { get; init; }
-}
-
-public struct SynchronizeRequest
-{
-    public ILogger<SynchronizeRequest> Logger { get; init; }
-    public BugLogging BugLogging { get; init; }
+    public ForkLogging ForkLogging { get; init; }
     public ScheduleWorkflow ScheduleWorkflow { get; init; }
 }
 
 public record WorkflowQuery
 {
     public string Pattern { get; init; } = null!;
+}
+
+public record WorkflowStartNowBody : WorkflowQuery
+{
     public string[] Steps { get; init; } = [];
 }
 
 public record WorkflowStartInBody : WorkflowQuery
 {
     public TimeSpan Wait { get; init; }
+    public string[] Steps { get; init; } = [];
 }
 
 // note: Does not validate the input because the scheduler does that already.
 public record WorkflowStartAtBody : WorkflowQuery
 {
     public DateTime When { get; init; }
+    public string[] Steps { get; init; } = [];
 
     public DateTimeOffset WhenUtc => When.ToUniversalTime();
 }

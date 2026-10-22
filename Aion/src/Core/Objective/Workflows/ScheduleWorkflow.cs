@@ -29,29 +29,37 @@ public class ScheduleWorkflow
         foreach (var workflowPath in findWorkflows.Where(workflowPattern))
         {
             var workflow = await composeWorkflow.From(workflowPath, new WorkflowPatch());
+            if (workflow is null)
+            {
+                logger.User.LogError("Skipping workflow '{aion.workflow.name}' because it did not load.", workflowPath.Name);
+                continue;
+            }
+
             var trigger = workflow.Trigger;
 
-            using var scope = logger.BeginActivity<ScheduleWorkflow>(("aion.workflow.trigger.key", trigger.Key.ToString()));
+            using var scope = logger.BeginActivity<ScheduleWorkflow>
+            (
+                ("aion.workflow.trigger.key", trigger.Key.ToString())
+            );
+
+            // note: This is pretty impossible, but just in case.
+            var cronTrigger = trigger as ICronTrigger ?? throw new InvalidOperationException($"{nameof(AsCron)} supports only cron triggers: {trigger.Key}");
 
             // core: Compare cron expressions only if the workflow is already scheduled.
             if (await scheduler.GetTrigger(trigger.Key) is ICronTrigger { CronExpressionString: { } currentCron })
             {
-                // note: This is pretty impossible, but just in case.
-                var cronTrigger = trigger as ICronTrigger ?? throw new InvalidOperationException($"{nameof(AsCron)} supports only cron triggers: {trigger.Key}");
-
                 // core: Compare the cron expressions.
                 if (cronTrigger is { CronExpressionString: { } otherCron } && currentCron.Equals(otherCron))
                 {
-                    logger.User.LogInformation("Trigger '{aion.workflow.trigger.key}' has not changed.");
+                    logger.User.LogInformation("Workflow '{aion.workflow.name}' has not changed.", workflowPath.Name);
                     continue;
                 }
 
                 using var cronScope = logger.BeginScopeWith(("aion.workflow.trigger.cron", cronTrigger.CronExpressionString));
-                logger.User.LogInformation("Trigger '{aion.workflow.trigger.key}' has a new schedule: {aion.workflow.trigger.cron}.");
+                logger.User.LogInformation("Workflow '{aion.workflow.name}' has a new schedule: '{aion.workflow.trigger.cron}'.", workflowPath.Name, cronTrigger.CronExpressionString);
                 if (await scheduler.RescheduleJob(trigger.Key, trigger) is { } next)
                 {
-                    using var _ = logger.BeginScopeWith(("aion.workflow.trigger.next", next));
-                    logger.System.LogInformation("Trigger '{aion.workflow.trigger.key}' rescheduled. Next execution at '{aion.workflow.trigger.next}'.");
+                    logger.User.LogInformation("Workflow '{aion.workflow.name}' has been rescheduled to '{aion.workflow.trigger.cron}'. Next execution at '{aion.workflow.trigger.next}'.", workflowPath.Name, cronTrigger.CronExpressionString, next);
                 }
             }
             else
@@ -63,20 +71,20 @@ public class ScheduleWorkflow
                         .DisallowConcurrentExecution()
                         .Build();
 
-                var nextNew = await scheduler.ScheduleJob(jobDetail, trigger);
-                using var _ = logger.BeginScopeWith(("aion.workflow.trigger.next", nextNew));
-                logger.System.LogInformation("Trigger '{aion.workflow.trigger.key}' scheduled. Next execution at '{aion.workflow.trigger.next}'.");
+                var next = await scheduler.ScheduleJob(jobDetail, trigger);
+                using var _ = logger.BeginScopeWith(("aion.workflow.trigger.next", next));
+                logger.System.LogInformation("Workflow '{aion.workflow.name}' scheduled to '{aion.workflow.trigger.cron}'. Next execution at '{aion.workflow.trigger.next}'.", workflowPath.Name, cronTrigger.CronExpressionString, next);
             }
         }
     }
 
-    public async Task AsOnce(string workflowPattern, DateTimeOffset startAtUtc)
+    public async Task AsOnce(string workflowPattern, WorkflowPatch workflowPatch)
     {
         var scheduler = await schedulerFactory.GetScheduler();
 
         foreach (var workflowPath in findWorkflows.Where(workflowPattern))
         {
-            var workflow = await composeWorkflow.From(workflowPath, new WorkflowPatch());
+            var workflow = await composeWorkflow.From(workflowPath, workflowPatch);
             var trigger = workflow.Trigger;
 
             if (trigger is ICronTrigger) throw new InvalidOperationException($"{nameof(AsOnce)} does not support cron triggers: {trigger.Key}.");
@@ -95,8 +103,9 @@ public class ScheduleWorkflow
             {
                 var jobDetail =
                     JobBuilder
-                        .Create<WorkflowRegularJob>()
+                        .Create<WorkflowCustomJob>()
                         .WithIdentity(trigger.JobKey)
+                        .UsingJobData(JobDataKeys.WorkflowPath, workflowPath)
                         .DisallowConcurrentExecution()
                         .Build();
 
@@ -180,36 +189,6 @@ public class ScheduleWorkflow
             using var _ = logger.BeginScopeWith(("aion.workflow.trigger.next", nextNew));
             logger.System.LogInformation("Trigger '{aion.workflow.trigger.key}' scheduled. Next execution at '{aion.workflow.trigger.next}'.");
             return true;
-        }
-    }
-
-    // meta: Cannot be IAsyncEnumerable because of try/catch.
-    public async Task<bool> Directory()
-    {
-        using var activity = logger.BeginActivity<ScheduleWorkflow>
-        (
-            ("aion.scheduler.home", schedulerOptions.Value.Home)
-        );
-
-        try
-        {
-            foreach (var workflowPath in findWorkflows.Where())
-            {
-                if (await composeWorkflow.From(workflowPath, WorkflowPatch.Empty) is { } workflow)
-                {
-                    // todo: Log schedule changes.
-                    var scheduleChange = await At(workflow.Trigger);
-                }
-            }
-
-            activity.System.Last.LogInformation("Synchronization of '{aion.scheduler.home}' finished in {aion.activity.duration_ms}.");
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            activity.System.Last.LogError(ex, "Synchronization of '{aion.scheduler.home}' failed.");
-            return false;
         }
     }
 }

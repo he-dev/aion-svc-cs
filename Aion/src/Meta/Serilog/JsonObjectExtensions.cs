@@ -14,7 +14,7 @@ public static class JsonObjectExtensions
     // note: This is a bit tricky, but it's the only way to get the logger to work.
     public static ILogger ToLogger(this JsonObject serilog)
     {
-        //if (serilog is null) return Logger.None;
+        ArgumentNullException.ThrowIfNull(serilog);
 
         // meta: This node is required in the appsettings.json for Serilog to find its settings.
         serilog = new JsonObject { ["Serilog"] = serilog };

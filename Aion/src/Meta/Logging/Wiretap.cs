@@ -16,6 +16,8 @@ public record LoggerProperty(string Name, object? Value)
     public static implicit operator (string Name, object? Value)(LoggerProperty state) => (state.Name, state.Value);
 }
 
+//public record Activity(string Name) : LoggerProperty("aion.activity", Name);
+
 public record Story(object? Value) : LoggerProperty($"{Wiretap.AppName}.activity.story", Value)
 {
     public static Story User { get; } = new("user");
@@ -27,13 +29,13 @@ public record Event(object? Value) : LoggerProperty($"{Wiretap.AppName}.activity
     // core: This is the very first event.
     public static Event Zero { get; } = new("zero");
 
-    public sealed record Last(object? Value) : Event(Value)
+    public sealed record Last(object? Value, System.Diagnostics.ActivityStatusCode StatusCode) : Event(Value)
     {
-        public static Last Okay { get; } = new("okay");
-        public static Last Fail { get; } = new("fail");
-        public static Last Noop { get; } = new("noop");
-        public static Last Void { get; } = new("void");
-        public static Last Auto { get; } = new("auto");
+        public static Last Okay { get; } = new("okay", System.Diagnostics.ActivityStatusCode.Ok);
+        public static Last Fail { get; } = new("fail", System.Diagnostics.ActivityStatusCode.Error);
+        public static Last Noop { get; } = new("noop", System.Diagnostics.ActivityStatusCode.Ok);
+        public static Last Halt { get; } = new("halt", System.Diagnostics.ActivityStatusCode.Ok);
+        public static Last Auto { get; } = new("auto", System.Diagnostics.ActivityStatusCode.Unset);
 
         public static Last Map(LogLevel logLevel)
         {
@@ -100,13 +102,6 @@ public class ActivityLogger
     IDisposable? scope
 ) : IActivityLogger
 {
-    private static readonly Dictionary<Event.Last, System.Diagnostics.ActivityStatusCode> StatusByEvent = new()
-    {
-        [Event.Last.Okay] = System.Diagnostics.ActivityStatusCode.Ok,
-        [Event.Last.Noop] = System.Diagnostics.ActivityStatusCode.Ok,
-        [Event.Last.Fail] = System.Diagnostics.ActivityStatusCode.Error
-    };
-
     private System.Diagnostics.Activity Activity { get; } = CreateActivity(name, configure);
 
     private Event.Last? LastEvent { get; set; }
@@ -141,11 +136,7 @@ public class ActivityLogger
         if (LastEvent is null)
         {
             Activity.SetEndTime(DateTime.UtcNow);
-            if (StatusByEvent.TryGetValue(last, out var status))
-            {
-                Activity.SetStatus(status);
-            }
-
+            Activity.SetStatus(last.StatusCode);
             LastEvent = last;
             return true;
         }
@@ -155,7 +146,7 @@ public class ActivityLogger
 
     public void Dispose()
     {
-        if (SetLast(Event.Last.Void))
+        if (SetLast(Event.Last.Auto))
         {
             this.LogWarning("Activity scope '{" + Wiretap.AppName + ".activity.name}' was disposed without setting the last event.", Activity.OperationName);
         }
@@ -243,6 +234,7 @@ public static class LoggerExtensions
         public IPropertyLogger Okay => propertyLogger.With(Event.Last.Okay);
         public IPropertyLogger Fail => propertyLogger.With(Event.Last.Fail);
         public IPropertyLogger Noop => propertyLogger.With(Event.Last.Noop);
+        public IPropertyLogger Halt => propertyLogger.With(Event.Last.Halt);
         public IPropertyLogger Last => propertyLogger.With(Event.Last.Auto);
     }
 }

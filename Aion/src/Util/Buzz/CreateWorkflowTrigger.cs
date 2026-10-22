@@ -14,15 +14,15 @@ public static class CreateWorkflowTrigger
         Action<TriggerBuilder<IJob>> customize
     )
     {
-        var group = string.Join('/', new[] { "workflows", workflowPath.Directory }.Where(x => !string.IsNullOrEmpty(x)));
-        var jobKey = new JobKey(workflowPath.Workflow, group);
+        // core: Cron and User triggers are different triggers.
+        var jobName = $"{workflowPath.Name}:{workflowTriggerMode}";
+        var jobGroup = string.Join('/', new[] { "workflows", workflowPath.Directory }.Where(x => !string.IsNullOrEmpty(x)));
 
         var builder =
             TriggerBuilder
                 .Create()
-                .ForJob(jobKey)
-                // core: Cron and User triggers are different triggers.
-                .WithIdentity($"{workflowPath.Workflow}:{workflowTriggerMode}", group)
+                .ForJob(jobName, jobGroup)
+                .WithIdentity(jobName, jobGroup)
                 .UsingJobData(new JobDataMap
                 {
                     { nameof(WorkflowPath), workflowPath },

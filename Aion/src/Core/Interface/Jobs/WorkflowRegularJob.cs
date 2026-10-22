@@ -21,6 +21,7 @@ public class WorkflowRegularJob
     public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
         var workflowPath = context.Trigger.JobDataMap.Get<WorkflowPath>(JobDataKeys.WorkflowPath);
+        var workflowPatch = context.Trigger.JobDataMap.Get<WorkflowPatch>(JobDataKeys.WorkflowPatch);
 
         using var scope = logger.BeginScopeWith
         (
@@ -34,7 +35,7 @@ public class WorkflowRegularJob
 
         try
         {
-            if (await composeWorkflow.From(workflowPath, WorkflowPatch.Empty) is {} workflow)
+            if (await composeWorkflow.From(workflowPath, workflowPatch) is {} workflow)
             {
                 await executeWorkflow.Invoke(workflow, cancellationToken);
             }

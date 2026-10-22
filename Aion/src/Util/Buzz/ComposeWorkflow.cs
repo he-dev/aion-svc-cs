@@ -20,26 +20,27 @@ public class ComposeWorkflow
     LoadLoggingPreset loadLoggingPreset
 )
 {
-    public async Task<Workflow?> From(WorkflowPath workflowPath, WorkflowPatch patch)
+    public async Task<Workflow?> From(WorkflowPath workflowPath, WorkflowPatch? patch = null)
     {
-        using var scope = logger.BeginScopeWith(("aion.workflow.path", workflowPath.Workflow));
-        logger.LogTrace("Composing workflow '{aion.workflow.path}'.", workflowPath.Workflow);
+        using var scope = logger.BeginScopeWith(("aion.workflow.path", workflowPath.Name));
+        logger.LogTrace("Composing workflow '{aion.workflow.path}'.", workflowPath.Name);
 
-        var spec = await loadWorkflowSpec.FromJson(workflowPath);
+        var spec = await loadWorkflowSpec.FromJsonOrNull(workflowPath);
 
         if (spec is null)
         {
+            logger.System.Halt.LogDebug("Cannot load workflow '{aion.workflow.path}' because there is no spec.");
             return null;
         }
 
-        spec += await loadWorkflowProfile.WhereOrEmpty(workflowPath);
+        spec += await loadWorkflowProfile.FromJsonOrEmpty(workflowPath);
 
         // meta: Create a partial workflow first so that we can use the Mode property for variables.
         var workflow = new Workflow
         {
             Spec = spec,
             Enabled = !spec.Disabled,
-            Logger = spec.Logger is null ? Serilog.Core.Logger.None : await loadLoggingPreset.Where(spec.Logger),
+            Logger = await loadLoggingPreset.FromJsonOrDefault(spec.Logger, Serilog.Core.Logger.None),
             Trigger = CreateWorkflowTrigger.Cron(spec.Path, spec.Cron),
             Variables = spec.Variables.ToImmutableDictionary(),
             Steps = []
@@ -63,6 +64,7 @@ public class ComposeWorkflow
 
         if (steps[true].Any())
         {
+            logger.System.Halt.LogDebug("Cannot load workflow '{aion.workflow.path}' because it contains {aion.workflow.step.count.invalid} invalid steps.", workflowPath.Name, steps[true].Count());
             return null;
         }
 
@@ -108,7 +110,7 @@ public class ComposeWorkflow
         }
         catch (Exception ex)
         {
-            logger.System.LogError(ex, "Failed to create step {aion.workflow.step.index}: {aion.workflow.step.exception:l}.", spec.Index, ex.Message);
+            logger.System.Fail.LogError(ex, "Failed to create step {aion.workflow.step.index}: {aion.workflow.step.exception:l}.", spec.Index, ex.Message);
             return null;
         }
     }

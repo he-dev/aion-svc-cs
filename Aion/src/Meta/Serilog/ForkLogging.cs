@@ -15,10 +15,10 @@ using Serilog.Formatting.Display;
 
 namespace Aion.Meta.Serilog;
 
-public sealed class BugLogging(IServiceProvider services) : ILogEventSink, IObservable<LogEvent>
+public sealed class ForkLogging(IServiceProvider services) : ILogEventSink, IObservable<LogEvent>
 {
     // note: Each observer registration owns its scope to reduce object nesting.
-    private ConcurrentDictionary<IObserver<LogEvent>, LogEventBugScope> Bugs { get; } = new(ReferenceEqualityComparer.Instance);
+    private ConcurrentDictionary<IObserver<LogEvent>, LogEventForkScope> Bugs { get; } = new(ReferenceEqualityComparer.Instance);
 
     public void Emit(LogEvent logEvent)
     {
@@ -37,8 +37,8 @@ public sealed class BugLogging(IServiceProvider services) : ILogEventSink, IObse
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
 
         // meta: Resolve the logger after the logging pipeline has been initialized to avoid circular dependencies.
-        var logger = services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<BugLogging>>();
-        var scope = new LogEventBugScope(logger, bug, propertyName);
+        var logger = services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ForkLogging>>();
+        var scope = new LogEventForkScope(logger, bug, propertyName);
 
         // core: Duplicate subscription is not allowed.
         if (!Bugs.TryAdd(bug, scope))
@@ -64,7 +64,7 @@ public sealed class BugLogging(IServiceProvider services) : ILogEventSink, IObse
     }
 }
 
-public class InMemoryBug : IObserver<LogEvent>, IEnumerable<LogEvent>
+public class InMemoryFork : IObserver<LogEvent>, IEnumerable<LogEvent>
 {
     private ConcurrentQueue<LogEvent> Queue { get; } = new();
     public void OnNext(LogEvent logEvent) => Queue.Enqueue(logEvent);
@@ -74,7 +74,7 @@ public class InMemoryBug : IObserver<LogEvent>, IEnumerable<LogEvent>
     IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)Queue).GetEnumerator();
 }
 
-public sealed class LoggerBug(ILogger logger) : IObserver<LogEvent>
+public sealed class LoggerFork(ILogger logger) : IObserver<LogEvent>
 {
     public void OnNext(LogEvent logEvent) => logger.Write(logEvent);
     public void OnCompleted() { }
@@ -82,7 +82,7 @@ public sealed class LoggerBug(ILogger logger) : IObserver<LogEvent>
 }
 
 // core: Preserve outer capture IDs because nested logger scopes would otherwise replace the same property's ID.
-internal sealed class LogEventBugScope : IObserver<LogEvent>, IDisposable
+internal sealed class LogEventForkScope : IObserver<LogEvent>, IDisposable
 {
     private string PropertyName { get; }
 
@@ -93,13 +93,13 @@ internal sealed class LogEventBugScope : IObserver<LogEvent>, IDisposable
 
     private ImmutableDictionary<string, ImmutableStack<string>> PreviousIds { get; }
 
-    private IObserver<LogEvent> Bug { get; }
+    private IObserver<LogEvent> Fork { get; }
 
     private IDisposable? LoggerScope { get; }
 
-    public LogEventBugScope(Microsoft.Extensions.Logging.ILogger logger, IObserver<LogEvent> bug, string propertyName)
+    public LogEventForkScope(Microsoft.Extensions.Logging.ILogger logger, IObserver<LogEvent> fork, string propertyName)
     {
-        Bug = bug;
+        Fork = fork;
         PropertyName = propertyName;
         PreviousIds = CurrentIds.Value ?? ImmutableDictionary<string, ImmutableStack<string>>.Empty;
 
@@ -115,15 +115,15 @@ internal sealed class LogEventBugScope : IObserver<LogEvent>, IDisposable
         CurrentIds.Value = PreviousIds.SetItem(PropertyName, ids);
     }
 
-    public void OnCompleted() => Bug.OnCompleted();
+    public void OnCompleted() => Fork.OnCompleted();
 
-    public void OnError(Exception error) => Bug.OnError(error);
+    public void OnError(Exception error) => Fork.OnError(error);
 
     public void OnNext(LogEvent logEvent)
     {
         if (Matches(logEvent))
         {
-            Bug.OnNext(logEvent);
+            Fork.OnNext(logEvent);
         }
     }
 
@@ -147,11 +147,11 @@ internal sealed class LogEventBugScope : IObserver<LogEvent>, IDisposable
     }
 }
 
-public static class LogEventBugExtensions
+public static class LogEventForkExtensions
 {
-    public static IEnumerable<LogEvent> AtLeast(this IEnumerable<LogEvent> bug, Microsoft.Extensions.Logging.LogLevel minLogLevel)
+    public static IEnumerable<LogEvent> AtLeast(this IEnumerable<LogEvent> fork, Microsoft.Extensions.Logging.LogLevel minLogLevel)
     {
-        return bug.Where(e => e.Level >= minLogLevel switch
+        return fork.Where(e => e.Level >= minLogLevel switch
         {
             Microsoft.Extensions.Logging.LogLevel.Trace => LogEventLevel.Verbose,
             Microsoft.Extensions.Logging.LogLevel.Debug => LogEventLevel.Debug,

@@ -18,9 +18,9 @@ public class LoadWorkflowProfile
     ValidateWorkflowProfile validateWorkflowProfile
 )
 {
-    public async Task<WorkflowProfile> WhereOrEmpty(WorkflowPath workflowPath)
+    public async Task<WorkflowProfile> FromJsonOrEmpty(WorkflowPath workflowPath)
     {
-        var profile = new WorkflowProfile();
+        var profile = WorkflowProfile.Empty;
         var file = new FileInfo(workflowPath);
         for (var dir = file.Directory; dir != null; dir = dir.Parent)
         {
@@ -31,8 +31,9 @@ public class LoadWorkflowProfile
             }
 
             var profilePath = Path.Join(dir.FullName, ".profile.json");
-            if (await FromJson(profilePath) is { } current)
+            if (await FromJsonOrNull(profilePath) is { } current)
             {
+                logger.System.LogDebug("Merging logger-profile with '{aion.profile.path}'.", profilePath);
                 profile += current;
             }
         }
@@ -40,7 +41,7 @@ public class LoadWorkflowProfile
         return profile;
     }
 
-    public async Task<WorkflowProfile?> FromJson(string profilePath)
+    public async Task<WorkflowProfile?> FromJsonOrNull(string profilePath)
     {
         using var scope = logger.BeginScopeWith(("aion.profile.path", profilePath));
 

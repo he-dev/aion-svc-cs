@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using Aion.Util.Buzz;
 using Quartz;
 
 namespace Aion.Util.Data;
@@ -45,12 +46,14 @@ public record Workflow
         public required TimeSpan Timeout { get; init; }
     }
 
-    public static Workflow operator +(Workflow workflow, WorkflowPatch patch)
+    public static Workflow operator +(Workflow workflow, WorkflowPatch? patch)
     {
+        if (patch is null) return workflow;
+
         return workflow with
         {
-            Enabled = workflow.Enabled || patch.Force,
-            Trigger = patch.Trigger ?? workflow.Trigger,
+            Enabled = true,
+            Trigger = CreateWorkflowTrigger.Simple(workflow.Spec.Path, patch.StartAt),
             Steps =
             [
                 ..

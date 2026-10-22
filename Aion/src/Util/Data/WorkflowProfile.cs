@@ -10,6 +10,8 @@ public record WorkflowProfile
 
     public string? Logger { get; init; }
 
+    public static WorkflowProfile Empty { get; } = new();
+
     public static WorkflowProfile operator +(WorkflowProfile left, WorkflowProfile right)
     {
         return new WorkflowProfile

@@ -17,13 +17,13 @@ public class LoadWorkflowSpec
     ValidateWorkflowFile validateWorkflowFile
 )
 {
-    public async Task<WorkflowSpec?> FromJson(WorkflowPath workflowPath)
+    public async Task<WorkflowSpec?> FromJsonOrNull(WorkflowPath workflowPath)
     {
-        using var scope = logger.BeginScopeWith(("aion.workflow.path", workflowPath.Workflow));
+        using var scope = logger.BeginScopeWith(("aion.workflow.path", workflowPath.Name));
 
         if (!File.Exists(workflowPath))
         {
-            logger.System.Noop.LogError("Workflow '{aion.workflow.path}' does not exist.");
+            logger.System.Noop.LogError("Workflow spec '{aion.workflow.path}' does not exist.");
             return null;
         }
 

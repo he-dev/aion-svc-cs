@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Aion.Meta.Logging.Wiretap;
 using Aion.Meta.Serilog;
 using Aion.Util.Data.Scheduler;
 using Microsoft.Extensions.Logging;
@@ -10,28 +11,27 @@ using Microsoft.Extensions.Options;
 
 namespace Aion.Util.Buzz;
 
-public class LoadLoggingPreset(ILogger<LoadLoggingPreset> logger, IOptions<SchedulerOptions> schedulerOptions)
+public class LoadLoggingPreset
+(
+    ILogger<LoadLoggingPreset> logger,
+    IOptions<SchedulerOptions> schedulerOptions
+)
 {
-    public async Task<Serilog.ILogger> Where(string loggingPresetName)
+    // core: Simplifies other calls.
+    public async Task<Serilog.ILogger> FromJsonOrDefault(string? loggingPresetNameOrPath, Serilog.ILogger defaultLogger)
     {
-        if (string.IsNullOrWhiteSpace(loggingPresetName))
+        if (loggingPresetNameOrPath is null)
         {
-            logger.LogInformation("Logging preset not specified.");
-            return Serilog.Core.Logger.None;
+            logger.System.LogDebug("Logging preset name-or-path is null. Using the default logger.");
+            return defaultLogger;
         }
 
-        // core: Create the path to the logging-preset-file.
-        var loggingPresetPath = Path.Combine(schedulerOptions.Value.Home, "loggers", $"{loggingPresetName}.json");
-        var logging = await Deserialize(loggingPresetPath);
-        return logging is null ? Serilog.Core.Logger.None : logging.ToLogger();
-    }
+        var loggingPresetPath = loggingPresetNameOrPath;
 
-    public async Task<JsonObject?> Deserialize(string loggingPresetPath)
-    {
-        if (!File.Exists(loggingPresetPath))
+        if (!Path.IsPathRooted(loggingPresetNameOrPath))
         {
-            logger.LogError("Logging preset '{LoggingPresetPath}' does not exist.", loggingPresetPath);
-            return null;
+            logger.System.LogDebug("Logging preset is a name: '{aion.logging.preset.path}'.", loggingPresetNameOrPath);
+            loggingPresetPath = Path.Combine(schedulerOptions.Value.Home, "loggers", loggingPresetNameOrPath);
         }
 
         try
@@ -47,16 +47,19 @@ public class LoadLoggingPreset(ILogger<LoadLoggingPreset> logger, IOptions<Sched
 
             if (logging is null)
             {
-                logger.LogError("Logging preset '{LoggingPresetPath}' does not contain valid logger JSON.", loggingPresetPath);
+                logger.System.LogError("Logging preset '{aion.logging.preset.path}' does not contain valid logger JSON. Using default logger.", loggingPresetPath);
             }
-
-            return logging;
+            else
+            {
+                return logging.ToLogger();
+            }
         }
         // meta: Single will throw this, so let's translate it to something meaningful.
         catch (Exception ex)
         {
-            logger.LogError(ex, "Unable to deserialize '{LoggingPresetPath}'.", loggingPresetPath);
-            return null;
+            logger.System.LogError(ex, "Unable to deserialize '{aion.logging.preset.path}'. Using default logger.", loggingPresetPath);
         }
+
+        return defaultLogger;
     }
 }

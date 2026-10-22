@@ -2,11 +2,11 @@
 
 namespace Aion.Util.Data;
 
-public record WorkflowPath(string Home, string Workflow)
+public record WorkflowPath(string Home, string Name)
 {
-    public string Directory => Path.GetDirectoryName(Workflow)!;
+    public string Directory => Path.GetDirectoryName(Name)!;
 
-    public override string ToString() => Path.Join(Home, Workflow);
+    public override string ToString() => Path.Join(Home, Name);
 
     public static implicit operator string(WorkflowPath workflowPath) => workflowPath.ToString();
 }

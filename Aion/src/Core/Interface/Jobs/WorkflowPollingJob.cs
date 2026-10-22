@@ -22,16 +22,16 @@ internal class WorkflowPollingJob
             ("aion.job.name", context.JobDetail.Key.Name)
         );
 
-        logger.System.Zero.LogDebug("Executing '{aion.job.group}:{aion.job.name}'.", context.JobDetail.Key.Group, context.JobDetail.Key.Name);
+        scope.System.Zero.LogDebug("Executing '{aion.job.group}:{aion.job.name}'.");
 
         try
         {
-            await scheduleWorkflow.Directory();
-            logger.System.Okay.LogDebug("Job '{aion.job.group}:{aion.job.name}' completed.", context.JobDetail.Key.Group, context.JobDetail.Key.Name);
+            await scheduleWorkflow.AsCron();
+            scope.System.Okay.LogDebug("Job '{aion.job.group}:{aion.job.name}' completed.");
         }
         catch (Exception ex)
         {
-            logger.System.Fail.LogError(ex, "Job '{aion.job.group}:{aion.job.name}' failed.", context.JobDetail.Key.Group, context.JobDetail.Key.Name);
+            scope.System.Fail.LogError(ex, "Job '{aion.job.group}:{aion.job.name}' failed.");
             throw new JobExecutionException(ex);
         }
     }

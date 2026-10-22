@@ -24,7 +24,7 @@ public class ComposeWorkflowOverview
 
         foreach (var workflowPath in findWorkflows.Where(workflowPattern))
         {
-            var workflow = await composeWorkflow.From(workflowPath, WorkflowPatch.Empty);
+            var workflow = await composeWorkflow.From(workflowPath);
             workflows = workflows.Add(workflow);
         }
 
@@ -32,7 +32,7 @@ public class ComposeWorkflowOverview
         var okay =
             from workflow in workflows
             let next = workflow.Trigger.FiresAt(utcNow).Take(3).Select(x => x.ToLocalTime())
-            orderby next.FirstOrDefault(), workflow.Spec.Path.Directory, workflow.Spec.Path.Workflow
+            orderby next.FirstOrDefault(), workflow.Spec.Path.Directory, workflow.Spec.Path.Name
             select new
             {
                 path = workflow.Spec.Path,
