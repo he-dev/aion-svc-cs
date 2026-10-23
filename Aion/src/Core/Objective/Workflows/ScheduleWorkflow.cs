@@ -4,9 +4,7 @@ using Aion.Core.Interface.Jobs;
 using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Buzz;
 using Aion.Util.Data;
-using Aion.Util.Data.Scheduler;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Quartz;
 
 namespace Aion.Core.Objective.Workflows;
@@ -14,7 +12,6 @@ namespace Aion.Core.Objective.Workflows;
 public class ScheduleWorkflow
 (
     ILogger<ScheduleWorkflow> logger,
-    IOptions<SchedulerOptions> schedulerOptions,
     ISchedulerFactory schedulerFactory,
     FindWorkflows findWorkflows,
     ComposeWorkflow composeWorkflow
@@ -31,13 +28,17 @@ public class ScheduleWorkflow
             var workflow = await composeWorkflow.From(workflowPath);
             if (workflow is null)
             {
-                logger.Domain.LogError("Skipping workflow '{@workflow.name}' because it did not load.", workflowPath);
+                logger.Domain.Oops.LogError("Skipping workflow '{@workflow.name}' because it did not load.", workflowPath);
                 continue;
             }
 
             var trigger = workflow.Trigger;
 
-            using var scope = logger.BeginScopeAbout<ScheduleWorkflow>([("workflow.trigger.key", trigger.Key.ToString())]);
+            using var about = logger.BeginScopeAbout<ScheduleWorkflow>
+            ([
+                ("@workflow.name", workflowPath),
+                ("workflow.trigger.key", trigger.Key.ToString())
+            ]);
 
             // note: This is pretty impossible, but just in case.
             var cronTrigger = trigger as ICronTrigger ?? throw new InvalidOperationException($"{nameof(AsCron)} supports only cron triggers: {trigger.Key}");
@@ -48,15 +49,15 @@ public class ScheduleWorkflow
                 // core: Compare the cron expressions.
                 if (cronTrigger is { CronExpressionString: { } otherCron } && currentCron.Equals(otherCron))
                 {
-                    logger.Domain.LogInformation("Workflow '{@workflow.name}' has not changed.", workflowPath);
+                    about.Domain.Bail.LogInformation("Workflow '{@workflow.name}' has not changed.");
                     continue;
                 }
 
                 using var cronScope = logger.BeginScopeWith(("aion.workflow.trigger.cron", cronTrigger.CronExpressionString));
-                logger.Domain.LogInformation("Workflow '{@workflow.name}' has a new schedule: '{workflow.trigger.cron}'.", workflowPath, cronTrigger.CronExpressionString);
+                about.Domain.LogInformation("Workflow '{@workflow.name}' has a new schedule: '{workflow.trigger.cron}'.", workflowPath, cronTrigger.CronExpressionString);
                 if (await scheduler.RescheduleJob(trigger.Key, trigger) is { } next)
                 {
-                    logger.Domain.LogInformation("Workflow '{@workflow.name}' has been rescheduled to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.", workflowPath, cronTrigger.CronExpressionString, next);
+                    about.Domain.Yeah.LogInformation("Workflow '{@workflow.name}' has been rescheduled to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.", workflowPath, cronTrigger.CronExpressionString, next);
                 }
             }
             else
@@ -69,8 +70,8 @@ public class ScheduleWorkflow
                         .Build();
 
                 var next = await scheduler.ScheduleJob(jobDetail, trigger);
-                using var _ = logger.BeginScopeWith(("aion.workflow.trigger.next", next));
-                logger.System.LogInformation("Workflow '{@workflow.name}' scheduled to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.", workflowPath, cronTrigger.CronExpressionString, next);
+                using var _ = logger.BeginScopeWith(("workflow.trigger.next", next));
+                about.Domain.Yeah.LogInformation("Workflow '{@workflow.name}' scheduled to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.", workflowPath, cronTrigger.CronExpressionString, next);
             }
         }
     }
@@ -82,18 +83,28 @@ public class ScheduleWorkflow
         foreach (var workflowPath in findWorkflows.Where(workflowPattern))
         {
             var workflow = await composeWorkflow.From(workflowPath, workflowMod);
+            if (workflow is null)
+            {
+                logger.Domain.Oops.LogError("Skipping workflow '{@workflow.name}' because it did not load.", workflowPath);
+                continue;
+            }
+
             var trigger = workflow.Trigger;
 
             if (trigger is ICronTrigger) throw new InvalidOperationException($"{nameof(AsOnce)} does not support cron triggers: {trigger.Key}.");
 
-            using var scope = logger.BeginScopeAbout<ScheduleWorkflow>([("workflow.trigger.key", trigger.Key.ToString())]);
+            using var about = logger.BeginScopeAbout<ScheduleWorkflow>
+            ([
+                ("@workflow.name", workflowPath),
+                ("workflow.trigger.key", trigger.Key.ToString())
+            ]);
 
             if (await scheduler.GetTrigger(trigger.Key) is { } current)
             {
                 if (await scheduler.RescheduleJob(trigger.Key, trigger) is { } next)
                 {
                     using var _ = logger.BeginScopeWith(("workflow.trigger.next", next));
-                    logger.System.LogInformation("Trigger '{workflow.trigger.key}' rescheduled. Next execution at '{workflow.trigger.next}'.");
+                    about.Domain.Yeah.LogInformation("Trigger '{workflow.trigger.key}' rescheduled. Next execution at '{workflow.trigger.next}'.");
                 }
             }
             else
@@ -109,7 +120,7 @@ public class ScheduleWorkflow
 
                 var nextNew = await scheduler.ScheduleJob(jobDetail, trigger);
                 using var _ = logger.BeginScopeWith(("workflow.trigger.next", nextNew));
-                logger.System.LogInformation("Trigger '{workflow.trigger.key}' scheduled. Next execution at '{workflow.trigger.next}'.");
+                about.Domain.Yeah.LogInformation("Trigger '{workflow.trigger.key}' scheduled. Next execution at '{workflow.trigger.next}'.");
             }
         }
     }

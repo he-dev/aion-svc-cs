@@ -26,13 +26,8 @@ public record Twist(object? Value) : LoggerProperty("scene.twist", Value)
     {
         public static Last Yeah { get; } = new("yeah", System.Diagnostics.ActivityStatusCode.Ok);
         public static Last Oops { get; } = new("oops", System.Diagnostics.ActivityStatusCode.Error);
-        public static Last Halt { get; } = new("halt", System.Diagnostics.ActivityStatusCode.Ok);
+        public static Last Bail { get; } = new("bail", System.Diagnostics.ActivityStatusCode.Ok);
         public static Last Limbo { get; } = new("limbo", System.Diagnostics.ActivityStatusCode.Unset);
-
-        public static Last Map(LogLevel logLevel)
-        {
-            return logLevel >= LogLevel.Error ? Oops : Yeah;
-        }
     }
 }
 
@@ -55,15 +50,13 @@ public class PropertyLogger(ILogger logger, LoggerProperty property) : IProperty
         var logEvent = property;
         if (property is Twist.Last last)
         {
-            // core: Override the last event if it's set to auto.
-            if (last == Twist.Last.Limbo)
-            {
-                last = Twist.Last.Map(logLevel);
-            }
-
             if (this.Scope is { } scope)
             {
-                scope.SetLast(last);
+                if (!scope.SetLast(last))
+                {
+                    // core: Last twist was already set.
+                    return;
+                }
             }
 
             logEvent = last;
@@ -190,12 +183,21 @@ public static class LoggerExtensions
             return new PropertyScope(logger, [.. properties.Select(p => new KeyValuePair<string, object?>(p.Name, p.Value))]);
         }
 
-        public ISceneLogger BeginScopeAbout(string about, (string Name, object? Value)[]? properties = null, Action<System.Diagnostics.Activity>? configure = null)
+        public ISceneLogger BeginScopeAbout
+        (
+            string about,
+            (string Name, object? Value)[]? properties = null,
+            Action<System.Diagnostics.Activity>? configure = null
+        )
         {
             return new SceneLogger(about, properties ?? [], configure ?? (_ => { }), logger);
         }
 
-        public ISceneLogger BeginScopeAbout<TAbout>((string Name, object? Value)[]? properties = null, Action<System.Diagnostics.Activity>? configure = null)
+        public ISceneLogger BeginScopeAbout<TAbout>
+        (
+            (string Name, object? Value)[]? properties = null,
+            Action<System.Diagnostics.Activity>? configure = null
+        )
         {
             return logger.BeginScopeAbout(typeof(TAbout).Name, properties, configure);
         }
@@ -231,7 +233,6 @@ public static class LoggerExtensions
         public IPropertyLogger Ready => propertyLogger.With(Twist.Ready);
         public IPropertyLogger Yeah => propertyLogger.With(Twist.Last.Yeah);
         public IPropertyLogger Oops => propertyLogger.With(Twist.Last.Oops);
-        public IPropertyLogger Halt => propertyLogger.With(Twist.Last.Halt);
-        public IPropertyLogger Limbo => propertyLogger.With(Twist.Last.Limbo);
+        public IPropertyLogger Bail => propertyLogger.With(Twist.Last.Bail);
     }
 }

@@ -23,7 +23,7 @@ public class LoadWorkflowSpec
 
         if (!File.Exists(workflowPath))
         {
-            logger.System.Halt.LogError("Workflow spec '{@workflow.name}' does not exist.");
+            logger.System.Bail.LogError("Workflow spec '{@workflow.name}' does not exist.");
             return null;
         }
 

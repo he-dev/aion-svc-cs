@@ -51,16 +51,16 @@ public class ExecuteWorkflow
                 ("workflow.step.count.success", success.Count(result => result)),
                 ("workflow.step.count.failure", success.Count(result => !result))
             );
-            activity.Domain.Yeah.LogInformation("Workflow '{@workflow.name}' completed in {activity.duration_ms:N0} ms. Steps: {workflow.step.count.success} okay, {workflow.step.count_failure} failed.");
+            activity.Domain.Yeah.LogInformation("Workflow '{@workflow.name}' completed in {scene.duration_ms:N0} ms. Steps: {workflow.step.count.success} okay, {workflow.step.count_failure} failed.");
         }
         catch (OperationCanceledException)
         {
-            activity.Domain.Limbo.LogError("Workflow '{@workflow.name}' was canceled after {activity.duration_ms:N0} ms.");
+            activity.Domain.Oops.LogError("Workflow '{@workflow.name}' was canceled after {scene.duration_ms:N0} ms.");
         }
 
         catch (Exception ex)
         {
-            activity.Domain.Limbo.LogError(ex, "Workflow '{@workflow.name}' failed after {activity.duration_ms:N0} ms.");
+            activity.Domain.Oops.LogError(ex, "Workflow '{@workflow.name}' failed after {scene.duration_ms:N0} ms.");
         }
     }
 }
