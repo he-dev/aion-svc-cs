@@ -20,16 +20,16 @@ public class ComposeWorkflow
     LoadLoggingPreset loadLoggingPreset
 )
 {
-    public async Task<Workflow?> From(WorkflowPath workflowPath, WorkflowPatch? patch = null)
+    public async Task<Workflow?> From(WorkflowPath workflowPath, WorkflowMod? mod = null)
     {
-        using var scope = logger.BeginScopeWith(("aion.workflow.path", workflowPath.Name));
-        logger.LogTrace("Composing workflow '{aion.workflow.path}'.", workflowPath.Name);
+        using var scope = logger.BeginScopeWith(("@workflow.name", workflowPath));
+        logger.LogDebug("Composing workflow '{@workflow.name}'.", workflowPath);
 
         var spec = await loadWorkflowSpec.FromJsonOrNull(workflowPath);
 
         if (spec is null)
         {
-            logger.System.Halt.LogDebug("Cannot load workflow '{aion.workflow.path}' because there is no spec.");
+            logger.System.Halt.LogDebug("Cannot load workflow '{@workflow.name}' because there is no spec.");
             return null;
         }
 
@@ -44,7 +44,7 @@ public class ComposeWorkflow
             Trigger = CreateWorkflowTrigger.Cron(spec.Path, spec.Cron),
             Variables = spec.Variables.ToImmutableDictionary(),
             Steps = []
-        } + patch;
+        } + mod;
 
         var variableGroups = ImmutableList<IVariableGroup>.Empty.AddRange
         ([
@@ -64,7 +64,7 @@ public class ComposeWorkflow
 
         if (steps[true].Any())
         {
-            logger.System.Halt.LogDebug("Cannot load workflow '{aion.workflow.path}' because it contains {aion.workflow.step.count.invalid} invalid steps.", workflowPath.Name, steps[true].Count());
+            logger.System.Halt.LogDebug("Cannot load workflow '{@workflow.name}' because it contains {workflow.step.count.invalid} invalid steps.", workflowPath, steps[true].Count());
             return null;
         }
 
@@ -110,7 +110,7 @@ public class ComposeWorkflow
         }
         catch (Exception ex)
         {
-            logger.System.Fail.LogError(ex, "Failed to create step {aion.workflow.step.index}: {aion.workflow.step.exception:l}.", spec.Index, ex.Message);
+            logger.System.Oops.LogError(ex, "Failed to create step {workflow.step.index}: {workflow.step.exception:l}.", spec.Index, ex.Message);
             return null;
         }
     }

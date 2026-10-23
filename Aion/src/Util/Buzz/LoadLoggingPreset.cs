@@ -30,7 +30,7 @@ public class LoadLoggingPreset
 
         if (!Path.IsPathRooted(loggingPresetNameOrPath))
         {
-            logger.System.LogDebug("Logging preset is a name: '{aion.logging.preset.path}'.", loggingPresetNameOrPath);
+            logger.System.LogDebug("Logging preset is a name: '{logging.preset.path}'.", loggingPresetNameOrPath);
             loggingPresetPath = Path.Combine(schedulerOptions.Value.Home, "loggers", loggingPresetNameOrPath);
         }
 
@@ -47,7 +47,7 @@ public class LoadLoggingPreset
 
             if (logging is null)
             {
-                logger.System.LogError("Logging preset '{aion.logging.preset.path}' does not contain valid logger JSON. Using default logger.", loggingPresetPath);
+                logger.System.LogError("Logging preset '{logging.preset.path}' does not contain valid logger JSON. Using default logger.", loggingPresetPath);
             }
             else
             {
@@ -57,7 +57,7 @@ public class LoadLoggingPreset
         // meta: Single will throw this, so let's translate it to something meaningful.
         catch (Exception ex)
         {
-            logger.System.LogError(ex, "Unable to deserialize '{aion.logging.preset.path}'. Using default logger.", loggingPresetPath);
+            logger.System.LogError(ex, "Unable to deserialize '{logging.preset.path}'. Using default logger.", loggingPresetPath);
         }
 
         return defaultLogger;

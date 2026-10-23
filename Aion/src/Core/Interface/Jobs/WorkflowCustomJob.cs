@@ -20,33 +20,33 @@ public class WorkflowCustomJob
     public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
         var workflowPath = context.Trigger.JobDataMap.Get<WorkflowPath>(JobDataKeys.WorkflowPath);
-        var workflowSteps = context.Trigger.JobDataMap.Get<string[]>(JobDataKeys.WorkflowSteps);
+        var workflowMod = context.Trigger.JobDataMap.Get<WorkflowMod>(JobDataKeys.WorkflowMod);
 
         using var scope = logger.BeginScopeWith
         (
-            ("aion.job.group", context.JobDetail.Key.Group),
-            ("aion.job.name", context.JobDetail.Key.Name),
-            ("aion.workflow.path", workflowPath),
-            ("aion.workflow.mode", WorkflowTriggerMode.User)
+            ("job.group", context.JobDetail.Key.Group),
+            ("job.name", context.JobDetail.Key.Name),
+            ("@workflow.name", workflowPath),
+            ("workflow.mode", WorkflowTriggerMode.User)
         );
 
-        logger.System.LogDebug("Job '{aion.job.group}:{aion.job.name}' is executing.");
+        logger.System.LogDebug("Job '{job.group}:{job.name}' is executing.");
 
         try
         {
-            if (await composeWorkflow.From(workflowPath, new WorkflowPatch { Steps = workflowSteps }) is { } workflow)
+            if (await composeWorkflow.From(workflowPath, workflowMod) is { } workflow)
             {
                 await executeWorkflow.Invoke(workflow, cancellationToken);
             }
         }
         catch (OperationCanceledException)
         {
-            logger.System.LogError("Job '{aion.job.group}:{aion.job.name}' was canceled.");
+            logger.System.LogError("Job '{job.group}:{job.name}' was canceled.");
         }
         catch (Exception ex)
         {
             // note: This should never happen.
-            logger.System.LogError(ex, "Job '{aion.job.group}:{aion.job.name}' failed.");
+            logger.System.LogError(ex, "Job '{job.group}:{job.name}' failed.");
             throw new JobExecutionException(ex);
         }
     }

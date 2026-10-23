@@ -33,7 +33,7 @@ public class LoadWorkflowProfile
             var profilePath = Path.Join(dir.FullName, ".profile.json");
             if (await FromJsonOrNull(profilePath) is { } current)
             {
-                logger.System.LogDebug("Merging logger-profile with '{aion.profile.path}'.", profilePath);
+                logger.System.LogDebug("Merging logger-profile with '{profile.path}'.", profilePath);
                 profile += current;
             }
         }
@@ -43,11 +43,11 @@ public class LoadWorkflowProfile
 
     public async Task<WorkflowProfile?> FromJsonOrNull(string profilePath)
     {
-        using var scope = logger.BeginScopeWith(("aion.profile.path", profilePath));
+        using var scope = logger.BeginScopeWith(("profile.path", profilePath));
 
         if (!File.Exists(profilePath))
         {
-            logger.System.LogError("Cannot load workflow-profile from '{aion.profile.path}' because it does not exist.", profilePath);
+            logger.System.LogError("Cannot load workflow-profile from '{profile.path}' because it does not exist.", profilePath);
             return null;
         }
 
@@ -67,7 +67,7 @@ public class LoadWorkflowProfile
 
             if (profile is null)
             {
-                logger.System.LogError("File '{aion.profile.path}' is empty. It needs to contain a workflow-profile.");
+                logger.System.LogError("File '{profile.path}' is empty. It needs to contain a workflow-profile.");
                 return null;
             }
 
@@ -75,7 +75,7 @@ public class LoadWorkflowProfile
             {
                 foreach (var issue in issues)
                 {
-                    logger.System.LogError("{aion.profile.issue}", issue);
+                    logger.System.LogError("{profile.issue}", issue);
                 }
 
                 return null;
@@ -89,7 +89,7 @@ public class LoadWorkflowProfile
         }
         catch (Exception e)
         {
-            logger.LogError(e, "An error occurred while deserializing the workflow profile '{aion.profile.path}'.");
+            logger.LogError(e, "An error occurred while deserializing the workflow profile '{profile.path}'.");
             return null;
         }
     }

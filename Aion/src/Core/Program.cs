@@ -8,6 +8,7 @@ using Aion.Meta.Serilog;
 using Aion.Meta.Serilog.Enriching;
 using Aion.Util.Buzz;
 using Aion.Util.Buzz.TriggerListeners;
+using Aion.Util.Data;
 using Aion.Util.Data.Scheduler;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -55,6 +56,7 @@ builder
 
         configuration
             .ReadFrom.Configuration(context.Configuration)
+            .Destructure.ByTransforming<WorkflowPath>(x => x.Name)
             .Enrich.FromLogContext()
             .Enrich.With<EnrichLogEventWithActivity>()
             .Enrich.With(new EnrichLogEventWithDuration(ts => (int)ts.TotalMilliseconds))

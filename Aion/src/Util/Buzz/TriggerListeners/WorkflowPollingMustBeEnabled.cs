@@ -22,7 +22,7 @@ public class WorkflowPollingMustBeEnabled
         if (schedulerOptions.Value.Polling.Disabled)
         {
             using var scope = logger.BeginScopeFrom(new { TriggerName = trigger.Key.Name });
-            logger.LogWarning("Workflow polling from '{aion.scheduler.home}' is disabled - pausing it.", schedulerOptions.Value.Home);
+            logger.LogWarning("Workflow polling from '{scheduler.home}' is disabled - pausing it.", schedulerOptions.Value.Home);
             await context.Scheduler.PauseJob(context.JobDetail.Key, cancellationToken);
             return true;
         }
@@ -32,13 +32,13 @@ public class WorkflowPollingMustBeEnabled
 
     public ValueTask TriggerFired(ITrigger trigger, IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
-        logger.LogDebug("Workflow synchronization trigger '{aion.trigger.group}:{aion.trigger.name}' has fired.", trigger.Key.Group, trigger.Key.Name);
+        logger.LogDebug("Workflow synchronization trigger '{trigger.group}:{trigger.name}' has fired.", trigger.Key.Group, trigger.Key.Name);
         return ValueTask.CompletedTask;
     }
 
     public ValueTask TriggerMisfired(ITrigger trigger, IScheduler scheduler, CancellationToken cancellationToken = default)
     {
-        logger.LogWarning("Workflow synchronization trigger '{aion.trigger.group}:{aion.trigger.name}' has misfired.", trigger.Key.Group, trigger.Key.Name);
+        logger.LogWarning("Workflow synchronization trigger '{trigger.group}:{trigger.name}' has misfired.", trigger.Key.Group, trigger.Key.Name);
         return ValueTask.CompletedTask;
     }
 

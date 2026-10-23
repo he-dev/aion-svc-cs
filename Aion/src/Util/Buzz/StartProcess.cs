@@ -59,7 +59,7 @@ public class StartProcess(ILogger<StartProcess> logger)
             {
                 try
                 {
-                    logger.User.LogInformation
+                    logger.Domain.LogInformation
                     (
                         "Process {aion.workflow.process.id} started by '{aion.workflow.process.file_name}' with arguments '{aion.workflow.process.arguments}'.",
                         process.Id,
@@ -98,7 +98,7 @@ public class StartProcess(ILogger<StartProcess> logger)
         {
             if (timeoutCts.IsCancellationRequested)
             {
-                logger.User.LogWarning("Process {aion.workflow.process.id} timed out after {aion.workflow.process.timeout_s} s.", process.Id, timeout.TotalSeconds);
+                logger.Domain.LogWarning("Process {workflow.process.id} timed out after {workflow.process.timeout_s} s.", process.Id, timeout.TotalSeconds);
             }
 
             var graceTimeout = TimeSpan.FromSeconds(10);
@@ -108,23 +108,23 @@ public class StartProcess(ILogger<StartProcess> logger)
                 {
                     process.Kill(entireProcessTree: true);
                     // core: Let's give the process a chance to exit.
-                    logger.System.LogDebug("Waiting {aion.workflow.process.kill_timeout_s} s for process {aion.workflow.process.id} to exit.", graceTimeout.TotalSeconds, process.Id);
+                    logger.System.LogDebug("Waiting {workflow.process.kill_timeout_s} s for process {workflow.process.id} to exit.", graceTimeout.TotalSeconds, process.Id);
                     using var cleanupCts = new CancellationTokenSource(graceTimeout);
                     await process.WaitForExitAsync(cleanupCts.Token);
-                    logger.System.LogInformation("Process {aion.workflow.process.id} was killed.", process.Id);
+                    logger.System.LogInformation("Process {workflow.process.id} was killed.", process.Id);
                 }
             }
             catch (OperationCanceledException)
             {
-                logger.System.LogWarning("Process {aion.workflow.process.id} termination could not be confirmed within {aion.workflow.process.kill_timeout_s} s after the kill request.", process.Id, graceTimeout.TotalSeconds);
+                logger.System.LogWarning("Process {workflow.process.id} termination could not be confirmed within {workflow.process.kill_timeout_s} s after the kill request.", process.Id, graceTimeout.TotalSeconds);
             }
             catch (InvalidOperationException) when (process.HasExited)
             {
-                logger.System.LogInformation("Process {aion.workflow.process.id} had already exited.", process.Id);
+                logger.System.LogInformation("Process {workflow.process.id} had already exited.", process.Id);
             }
             catch (Exception ex)
             {
-                logger.System.LogError(ex, "Unable to kill process {aion.workflow.process.id}.", process.Id);
+                logger.System.LogError(ex, "Unable to kill process {workflow.process.id}.", process.Id);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -146,8 +146,8 @@ public class StartProcess(ILogger<StartProcess> logger)
         {
             switch (consoleStreamType)
             {
-                case ConsoleStreamType.StdOut: logger.User.LogInformation("{StdOut}: {aion.workflow.process.stdout}", consoleStreamType, e.Data); break;
-                case ConsoleStreamType.StdErr: logger.User.LogError("{StdErr}: {aion.workflow.process.stderr}", consoleStreamType, e.Data); break;
+                case ConsoleStreamType.StdOut: logger.Domain.LogInformation("{StdOut}: {workflow.process.stdout}", consoleStreamType, e.Data); break;
+                case ConsoleStreamType.StdErr: logger.Domain.LogError("{StdErr}: {workflow.process.stderr}", consoleStreamType, e.Data); break;
             }
         }
     }

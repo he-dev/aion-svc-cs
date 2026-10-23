@@ -16,22 +16,22 @@ internal class WorkflowPollingJob
 {
     public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
-        using var scope = logger.BeginActivity<WorkflowPollingJob>
-        (
-            ("aion.job.group", context.JobDetail.Key.Group),
-            ("aion.job.name", context.JobDetail.Key.Name)
-        );
+        using var scope = logger.BeginScopeAbout<WorkflowPollingJob>
+        ([
+            ("job.group", context.JobDetail.Key.Group),
+            ("job.name", context.JobDetail.Key.Name)
+        ]);
 
-        scope.System.Zero.LogDebug("Executing '{aion.job.group}:{aion.job.name}'.");
+        scope.System.Ready.LogDebug("Executing '{job.group}:{job.name}'.");
 
         try
         {
             await scheduleWorkflow.AsCron();
-            scope.System.Okay.LogDebug("Job '{aion.job.group}:{aion.job.name}' completed.");
+            scope.System.Yeah.LogDebug("Job '{job.group}:{job.name}' completed.");
         }
         catch (Exception ex)
         {
-            scope.System.Fail.LogError(ex, "Job '{aion.job.group}:{aion.job.name}' failed.");
+            scope.System.Oops.LogError(ex, "Job '{job.group}:{job.name}' failed.");
             throw new JobExecutionException(ex);
         }
     }

@@ -8,6 +8,7 @@ using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Buzz;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
+using Activity = System.Diagnostics.Activity;
 
 namespace Aion.Core.Objective.Workflows;
 
@@ -19,15 +20,15 @@ public class ExecuteStep
 {
     public async Task<bool> AsProcess(Workflow.Step step, CancellationToken cancellationToken = default)
     {
-        using var activity = logger.BeginActivity<ExecuteStep>
-        (
-            ("aion.workflow.step.index", step.Spec.Index),
-            ("aion.workflow.step.name", step.Name)
-        );
+        using var activity = logger.BeginScopeAbout<ExecuteStep>
+        ([
+            ("workflow.step.index", step.Spec.Index),
+            ("workflow.step.name", step.Name)
+        ]);
 
         try
         {
-            activity.System.Zero.LogInformation("Executing step {aion.workflow.step.index}.");
+            activity.System.Ready.LogInformation("Executing step {workflow.step.index}.");
             var exitCode = await startProcess.Invoke
             (
                 step.FileName,
@@ -41,18 +42,19 @@ public class ExecuteStep
             switch (exitCode)
             {
                 case null:
-                    activity.User.Last.LogInformation("Step {aion.workflow.step.index} did not complete.");
+                    activity.Domain.Limbo.LogInformation("Step {workflow.step.index} did not complete.");
                     break;
                 case 0:
-                    activity.User.Last.LogInformation("Step {aion.workflow.step.index} completed in {aion.activity.duration_ms:N0} ms.");
+                    activity.Domain.Limbo.LogInformation("Step {workflow.step.index} completed in {activity.duration_ms:N0} ms.");
                     break;
                 default:
                 {
-                    using var exitScope = logger.BeginScopeWith(("aion.workflow.step.exit_code", exitCode));
-                    activity.User.Last.LogInformation("Step {aion.workflow.step.index} failed after {aion.activity.duration_ms:N0} ms with exit code {aion.workflow.step.exit_code}.");
+                    using var exitScope = logger.BeginScopeWith(("workflow.step.exit_code", exitCode));
+                    activity.Domain.Limbo.LogInformation("Step {workflow.step.index} failed after {activity.duration_ms:N0} ms with exit code {workflow.step.exit_code}.");
                 }
                     break;
             }
+
             return exitCode == 0;
         }
         catch (OperationCanceledException)
@@ -62,7 +64,7 @@ public class ExecuteStep
         }
         catch (Exception ex)
         {
-            activity.User.Last.LogError(ex, "Step {aion.workflow.step.index} failed after {aion.activity.duration_ms:N0} ms with an exception.");
+            activity.Domain.Limbo.LogError(ex, "Step {workflow.step.index} failed after {activity.duration_ms:N0} ms with an exception.");
             return false;
         }
     }

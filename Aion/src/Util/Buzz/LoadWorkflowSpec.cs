@@ -19,11 +19,11 @@ public class LoadWorkflowSpec
 {
     public async Task<WorkflowSpec?> FromJsonOrNull(WorkflowPath workflowPath)
     {
-        using var scope = logger.BeginScopeWith(("aion.workflow.path", workflowPath.Name));
+        using var scope = logger.BeginScopeWith(("@workflow.name", workflowPath));
 
         if (!File.Exists(workflowPath))
         {
-            logger.System.Noop.LogError("Workflow spec '{aion.workflow.path}' does not exist.");
+            logger.System.Halt.LogError("Workflow spec '{@workflow.name}' does not exist.");
             return null;
         }
 
@@ -43,7 +43,7 @@ public class LoadWorkflowSpec
 
             if (json is null)
             {
-                logger.System.Fail.LogError("Workflow '{aion.workflow.path}' is null or empty.");
+                logger.System.Oops.LogError("Workflow '{@workflow.name}' is null or empty.");
                 return null;
             }
 
@@ -51,7 +51,7 @@ public class LoadWorkflowSpec
             {
                 foreach (var issue in issues)
                 {
-                    logger.System.LogError("{aion.workflow.issue}", issue);
+                    logger.System.LogError("{workflow.issue}", issue);
                 }
             }
 
@@ -78,11 +78,13 @@ public class LoadWorkflowSpec
                     })
                 ]
             };
+            logger.System.Yeah.LogDebug("Workflow '{@workflow.name}' is valid.");
+
             return spec;
         }
         catch (Exception e)
         {
-            logger.System.Fail.LogError(e, "An error occurred while deserializing '{aion.workflow.path}'.");
+            logger.System.Oops.LogError(e, "An error occurred while deserializing '{@workflow.name}'.");
             return null;
         }
     }

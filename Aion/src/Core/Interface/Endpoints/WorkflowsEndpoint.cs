@@ -38,7 +38,7 @@ public static class WorkflowsEndpoint
     {
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.With(inMemoryFork);
-        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowPatch
+        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowMod
         {
             StartAt = DateTimeOffset.UtcNow,
             Steps = body.Steps
@@ -50,7 +50,7 @@ public static class WorkflowsEndpoint
     {
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.With(inMemoryFork);
-        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowPatch
+        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowMod
         {
             StartAt = DateTimeOffset.UtcNow + body.Wait,
             Steps = body.Steps
@@ -63,7 +63,7 @@ public static class WorkflowsEndpoint
     {
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.With(inMemoryFork);
-        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowPatch
+        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowMod
         {
             StartAt = body.WhenUtc,
             Steps = body.Steps
@@ -82,7 +82,7 @@ public static class WorkflowsEndpoint
         var results =
             inMemoryFork
                 //.AtLeast(LogLevel.Error)
-                .GroupBy(e => e.TryGetScalar<string>("aion.workflow.path", out var key) ? key : "(unknown)", e => e, (workflow, events) => new { workflow, events = events.Format("[{Level:u3}] {Message:lj}").ToList() })
+                .GroupBy(e => e.TryGetScalar<string>("workflow.name", out var key) ? key : "(unknown)", e => e, (workflow, events) => new { workflow, events = events.Format("[{Level:u3}] {Message:lj}").ToList() })
                 .ToList();
 
         return Results.Ok(results);

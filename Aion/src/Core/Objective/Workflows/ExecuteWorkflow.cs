@@ -20,13 +20,13 @@ public class ExecuteWorkflow
     public async Task Invoke(Workflow workflow, CancellationToken cancellationToken = default)
     {
         using var loggerBug = forkLogging.With(new LoggerFork(workflow.Logger));
-        using var activity = logger.BeginActivity<ExecuteWorkflow>
-        (
-            ("aion.workflow.path", workflow.Spec.Path.Name),
-            ("aion.workflow.mode", workflow.TriggerMode)
-        );
+        using var activity = logger.BeginScopeAbout<ExecuteWorkflow>
+        ([
+            ("@workflow.name", workflow.Spec.Path),
+            ("workflow.mode", workflow.TriggerMode)
+        ]);
 
-        activity.User.Zero.LogInformation("Executing workflow '{aion.workflow.path}'.");
+        activity.Domain.Ready.LogInformation("Executing workflow '{@workflow.name}'.");
 
         var success = new List<bool>();
         try
@@ -39,7 +39,7 @@ public class ExecuteWorkflow
                 }
                 else
                 {
-                    activity.User.LogInformation("Skipping step {aion.workflow.step.index} because it is disabled.", step.Index);
+                    activity.Domain.LogInformation("Skipping step {workflow.step.index} because it is disabled.", step.Index);
                 }
             }
 
@@ -47,20 +47,20 @@ public class ExecuteWorkflow
 
             using var stats = logger.BeginScopeWith
             (
-                ("aion.workflow.step.count.enabled", workflow.Steps.Count(step => step.Enabled)),
-                ("aion.workflow.step.count.success", success.Count(result => result)),
-                ("aion.workflow.step.count.failure", success.Count(result => !result))
+                ("workflow.step.count.enabled", workflow.Steps.Count(step => step.Enabled)),
+                ("workflow.step.count.success", success.Count(result => result)),
+                ("workflow.step.count.failure", success.Count(result => !result))
             );
-            activity.User.Okay.LogInformation("Workflow '{aion.workflow.path}' completed in {aion.activity.duration_ms:N0} ms. Steps: {aion.workflow.step.count.success} okay, {aion.workflow.step.count_failure} failed.");
+            activity.Domain.Yeah.LogInformation("Workflow '{@workflow.name}' completed in {activity.duration_ms:N0} ms. Steps: {workflow.step.count.success} okay, {workflow.step.count_failure} failed.");
         }
         catch (OperationCanceledException)
         {
-            activity.User.Last.LogError("Workflow '{aion.workflow.path}' was canceled after {aion.activity.duration_ms:N0} ms.");
+            activity.Domain.Limbo.LogError("Workflow '{@workflow.name}' was canceled after {activity.duration_ms:N0} ms.");
         }
 
         catch (Exception ex)
         {
-            activity.User.Last.LogError(ex, "Workflow '{aion.workflow.path}' failed after {aion.activity.duration_ms:N0} ms.");
+            activity.Domain.Limbo.LogError(ex, "Workflow '{@workflow.name}' failed after {activity.duration_ms:N0} ms.");
         }
     }
 }

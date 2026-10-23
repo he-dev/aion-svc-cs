@@ -31,7 +31,7 @@ public sealed class ForkLogging(IServiceProvider services) : ILogEventSink, IObs
     // note: Hides this method to use a more descriptive name.
     IDisposable IObservable<LogEvent>.Subscribe(IObserver<LogEvent> observer) => With(observer);
 
-    public IDisposable With(IObserver<LogEvent> bug, string propertyName = "logging.bugs")
+    public IDisposable With(IObserver<LogEvent> bug, string propertyName = "logging.forks")
     {
         ArgumentNullException.ThrowIfNull(bug);
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);

@@ -36,7 +36,7 @@ public class ComposeWorkflowOverview
             select new
             {
                 path = workflow.Spec.Path,
-                isOn = workflow.Spec.Disabled == false,
+                isOn = workflow.Enabled,
                 cron = ((ICronTrigger)workflow.Trigger).CronExpressionString,
                 next = next,
                 steps =
