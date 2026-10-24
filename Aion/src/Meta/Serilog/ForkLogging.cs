@@ -169,6 +169,15 @@ public static class LogEventForkExtensions
         return events.Where(e => e.TryGetScalar<T>(name, out var scalar) && EqualityComparer<T>.Default.Equals(scalar, value));
     }
 
+    public static T? GetScalarOrDefault<T>(this LogEvent logEvent, string name)
+    {
+        if (logEvent.Properties.TryGetValue(name, out var property) && property is ScalarValue { Value: T scalar })
+        {
+            return scalar;
+        }
+        return default;
+    }
+
     public static IEnumerable<string> Format(this IEnumerable<LogEvent> events, ITextFormatter formatter)
     {
         return events.Select(e =>

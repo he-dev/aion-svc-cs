@@ -6,39 +6,21 @@ using Microsoft.Extensions.Logging;
 // ReSharper disable once CheckNamespace
 namespace Aion.Meta.Logging.Wiretap;
 
-public record LoggerProperty(string Name, object? Value)
+public enum Event
 {
-    public static implicit operator (string Name, object? Value)(LoggerProperty state) => (state.Name, state.Value);
-}
-
-public record Story(object? Value) : LoggerProperty("story", Value)
-{
-    public static Story Domain { get; } = new("domain");
-    public static Story System { get; } = new("system");
-}
-
-public record Twist(object? Value) : LoggerProperty("scene.twist", Value)
-{
-    // core: This is the very first event.
-    public static Twist Ready { get; } = new("ready");
-
-    public sealed record Last(object? Value, System.Diagnostics.ActivityStatusCode StatusCode) : Twist(Value)
-    {
-        public static Last Yeah { get; } = new("yeah", System.Diagnostics.ActivityStatusCode.Ok);
-        public static Last Oops { get; } = new("oops", System.Diagnostics.ActivityStatusCode.Error);
-        public static Last Bail { get; } = new("bail", System.Diagnostics.ActivityStatusCode.Ok);
-        public static Last Limbo { get; } = new("limbo", System.Diagnostics.ActivityStatusCode.Unset);
-    }
+    Zero,
+    Tick,
+    Last,
 }
 
 public interface IPropertyLogger : ILogger
 {
-    public ILogger Logger { get; }
+    public ILogger Outer { get; }
 }
 
-public class PropertyLogger(ILogger logger, LoggerProperty property) : IPropertyLogger
+public class StoryLogger(ILogger logger, string story) : IPropertyLogger
 {
-    public ILogger Logger => logger;
+    public ILogger Outer => logger;
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => logger.BeginScope(state);
 
@@ -46,25 +28,35 @@ public class PropertyLogger(ILogger logger, LoggerProperty property) : IProperty
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
-        // core: Resolve last before IsEnabled, so scope-disposal does not think it's empty.
-        var logEvent = property;
-        if (property is Twist.Last last)
+        if (IsEnabled(logLevel))
         {
-            if (this.Scope is { } scope)
+            using (logger.BeginScopeWith(("story", story)))
             {
-                if (!scope.SetLast(last))
-                {
-                    // core: Last twist was already set.
-                    return;
-                }
+                logger.Log(logLevel, eventId, state, exception, formatter);
             }
+        }
+    }
+}
 
-            logEvent = last;
+public class EventLogger(ILogger logger, Event activityEvent) : IPropertyLogger
+{
+    public ILogger Outer => logger;
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => logger.BeginScope(state);
+
+    public bool IsEnabled(LogLevel logLevel) => logger.IsEnabled(logLevel);
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        // core: Try pushing the event when inside a scene, otherwise skip logging due to an invalid event sequence.
+        if (this.ActivityLogger is { } activityLogger && !activityLogger.Push(activityEvent, logLevel))
+        {
+            return;
         }
 
         if (IsEnabled(logLevel))
         {
-            using (logger.BeginScopeWith(logEvent))
+            using (logger.BeginScopeWith(("activity.event", activityEvent)))
             {
                 logger.Log(logLevel, eventId, state, exception, formatter);
             }
@@ -93,63 +85,98 @@ public class PropertyScope(ILogger logger, KeyValuePair<string, object?>[] prope
     public void Dispose() => Scope?.Dispose();
 }
 
-public interface ISceneLogger : ILogger, IDisposable
+public interface IActivityLogger : ILogger, IDisposable
 {
-    bool SetLast(Twist.Last last);
+    bool Push(Event next, LogLevel logLevel);
 }
 
-public class SceneLogger(string about, (string Name, object? Value)[] properties, Action<System.Diagnostics.Activity> configure, ILogger logger) : ISceneLogger
+public class ActivityLogger(string about, (string Name, object? Value)[] properties, Action<System.Diagnostics.Activity> configure, ILogger outer) : IActivityLogger
 {
     private System.Diagnostics.Activity Activity { get; } = CreateActivity(about, configure);
 
-    private IDisposable? LoggerScope { get; } = logger.BeginScopeWith([("scene.about", about), .. properties]);
+    private IDisposable? LoggerScope { get; } = outer.BeginScopeWith
+    ([
+        ("activity.about", about),
+        // core: Apply tick-event by default.
+        ("activity.event", Event.Tick),
+        .. properties
+    ]);
 
-    private Twist.Last? LastEvent { get; set; }
+    private Event? RecentEvent { get; set; }
 
-    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => logger.BeginScope(state);
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => outer.BeginScope(state);
 
-    public bool IsEnabled(LogLevel logLevel) => logger.IsEnabled(logLevel);
+    public bool IsEnabled(LogLevel logLevel) => outer.IsEnabled(logLevel);
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
         if (IsEnabled(logLevel))
         {
-            if (LastEvent is not null)
+            var durationScope =
+                RecentEvent is Event.Last
+                    ? outer.BeginScopeWith(("activity.duration_ms", (long)Activity.Duration.TotalMilliseconds))
+                    : null;
+
+            using (durationScope)
             {
-                using (logger.BeginScopeWith(("scene.duration_ms", (long)Activity.Duration.TotalMilliseconds)))
-                {
-                    logger.Log(logLevel, eventId, state, exception, formatter);
-                }
-            }
-            else
-            {
-                logger.Log(logLevel, eventId, state, exception, formatter);
+                outer.Log(logLevel, eventId, state, exception, formatter);
             }
         }
     }
 
-    public bool SetLast(Twist.Last last)
+    public bool Push(Event next, LogLevel logLevel)
     {
-        if (LastEvent is null)
+        switch (next)
         {
-            Activity.SetEndTime(DateTime.UtcNow);
-            if (last.StatusCode > System.Diagnostics.ActivityStatusCode.Unset)
-            {
-                Activity.SetStatus(last.StatusCode);
-            }
+            case Event.Zero when RecentEvent is null:
+                RecentEvent = next;
+                Activity.Start();
+                return true;
+            case Event.Tick when RecentEvent is Event.Zero or Event.Tick:
+                RecentEvent = next;
+                return true;
+            case Event.Last when RecentEvent is Event.Zero or Event.Tick:
+                RecentEvent = next;
+                Activity.SetEndTime(DateTime.UtcNow);
+                switch (logLevel)
+                {
+                    case LogLevel.None:
+                        // core: Leave the status as-is.
+                        break;
+                    case LogLevel.Trace:
+                    case LogLevel.Debug:
+                    case LogLevel.Information:
+                    case LogLevel.Warning:
+                        Activity.SetStatus(System.Diagnostics.ActivityStatusCode.Ok);
+                        break;
+                    case LogLevel.Error:
+                    case LogLevel.Critical:
+                        Activity.SetStatus(System.Diagnostics.ActivityStatusCode.Error);
+                        break;
+                }
 
-            LastEvent = last;
-            return true;
+                return true;
+            default:
+                this.System.LogWarning("Unexpected event '{wiretap.event.next}' following '{wiretap.event.recent}'.", next, RecentEvent);
+                return false;
         }
-
-        return false;
     }
 
     public void Dispose()
     {
-        if (SetLast(Twist.Last.Limbo))
+        switch (RecentEvent)
         {
-            this.LogWarning("Scene about '{scene.about}' was disposed without setting the last twist.", about);
+            case null:
+                // core: Establish proper order of events.
+                Push(Event.Zero, LogLevel.None);
+                Push(Event.Last, LogLevel.None);
+                this.LogWarning("Activity has not been properly initialized with Event.Zero.");
+                break;
+            case Event.Zero or Event.Tick:
+                // core: Establish proper order of events.
+                Push(Event.Last, LogLevel.None);
+                this.LogWarning("Activity has not been properly finalized with Event.Last.");
+                break;
         }
 
         Activity.Dispose();
@@ -160,7 +187,7 @@ public class SceneLogger(string about, (string Name, object? Value)[] properties
     {
         var activity = new System.Diagnostics.Activity(name);
         configure(activity);
-        return activity.Start();
+        return activity;
     }
 }
 
@@ -183,17 +210,17 @@ public static class LoggerExtensions
             return new PropertyScope(logger, [.. properties.Select(p => new KeyValuePair<string, object?>(p.Name, p.Value))]);
         }
 
-        public ISceneLogger BeginScopeAbout
+        public IActivityLogger BeginScopeAbout
         (
             string about,
             (string Name, object? Value)[]? properties = null,
             Action<System.Diagnostics.Activity>? configure = null
         )
         {
-            return new SceneLogger(about, properties ?? [], configure ?? (_ => { }), logger);
+            return new ActivityLogger(about, properties ?? [], configure ?? (_ => { }), logger);
         }
 
-        public ISceneLogger BeginScopeAbout<TAbout>
+        public IActivityLogger BeginScopeAbout<TAbout>
         (
             (string Name, object? Value)[]? properties = null,
             Action<System.Diagnostics.Activity>? configure = null
@@ -202,37 +229,31 @@ public static class LoggerExtensions
             return logger.BeginScopeAbout(typeof(TAbout).Name, properties, configure);
         }
 
-        public IPropertyLogger With(LoggerProperty property) => new PropertyLogger(logger, property);
+        //public IPropertyLogger With(LoggerProperty property) => new PropertyLogger(logger, property);
 
-        public IPropertyLogger Domain => logger.With(Story.Domain);
-        public IPropertyLogger System => logger.With(Story.System);
+        public IPropertyLogger Domain => new StoryLogger(logger, "Domain");
+        public IPropertyLogger System => new StoryLogger(logger, "System");
     }
 
     extension(IPropertyLogger propertyLogger)
     {
-        // core: Locates the scope and sets the last event.
-        public ISceneLogger? Scope
+        // core: Locates the scene.
+        public IActivityLogger? ActivityLogger
         {
             get
             {
                 ILogger current = propertyLogger;
                 while (current is IPropertyLogger decorator)
                 {
-                    current = decorator.Logger;
+                    current = decorator.Outer;
                 }
 
-                if (current is ISceneLogger scope)
-                {
-                    return scope;
-                }
-
-                return null;
+                return current as IActivityLogger;
             }
         }
 
-        public IPropertyLogger Ready => propertyLogger.With(Twist.Ready);
-        public IPropertyLogger Yeah => propertyLogger.With(Twist.Last.Yeah);
-        public IPropertyLogger Oops => propertyLogger.With(Twist.Last.Oops);
-        public IPropertyLogger Bail => propertyLogger.With(Twist.Last.Bail);
+        public IPropertyLogger Zero => new EventLogger(propertyLogger, Event.Zero);
+        public IPropertyLogger Tick => new EventLogger(propertyLogger, Event.Tick);
+        public IPropertyLogger Last => new EventLogger(propertyLogger, Event.Last);
     }
 }

@@ -29,7 +29,7 @@ public class ComposeWorkflow
 
         if (spec is null)
         {
-            logger.System.Bail.LogDebug("Cannot load workflow '{@workflow.name}' because there is no spec.");
+            logger.System.Last.LogDebug("Cannot load workflow '{@workflow.name}' because there is no spec.");
             return null;
         }
 
@@ -64,7 +64,7 @@ public class ComposeWorkflow
 
         if (steps[true].Any())
         {
-            logger.System.Bail.LogDebug("Cannot load workflow '{@workflow.name}' because it contains {workflow.step.count.invalid} invalid steps.", workflowPath, steps[true].Count());
+            logger.System.Last.LogDebug("Cannot load workflow '{@workflow.name}' because it contains {workflow.step.count.invalid} invalid steps.", workflowPath, steps[true].Count());
             return null;
         }
 
@@ -110,7 +110,7 @@ public class ComposeWorkflow
         }
         catch (Exception ex)
         {
-            logger.System.Oops.LogError(ex, "Failed to create step {workflow.step.index}: {workflow.step.exception:l}.", spec.Index, ex.Message);
+            logger.System.Last.LogError(ex, "Failed to create step {workflow.step.index}: {workflow.step.exception:l}.", spec.Index, ex.Message);
             return null;
         }
     }

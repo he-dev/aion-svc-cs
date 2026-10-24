@@ -69,7 +69,7 @@ public static class WorkflowsEndpoint
             Steps = body.Steps
         });
 
-        return Results.Accepted($"/api/workflows", new { });
+        return Results.Accepted("/api/workflows", new { });
     }
 
     private static async Task<IResult> Synchronize([AsParameters] ScheduleRequest parameters)
@@ -81,8 +81,11 @@ public static class WorkflowsEndpoint
 
         var results =
             inMemoryFork
-                //.AtLeast(LogLevel.Error)
-                .GroupBy(e => e.TryGetScalar<string>("workflow.name", out var key) ? key : "(unknown)", e => e, (workflow, events) => new { workflow, events = events.Format("[{Level:u3}] {Message:lj}").ToList() })
+                .GroupBy
+                (
+                    e => e.GetScalarOrDefault<string>("workflow.name") ?? "(other)",
+                    e => e, (workflow, events) => new { workflow, events = events.Format("[{Level:u3}] {Message:lj}").ToList() }
+                )
                 .ToList();
 
         return Results.Ok(results);

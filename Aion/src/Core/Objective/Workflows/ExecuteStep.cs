@@ -28,7 +28,7 @@ public class ExecuteStep
 
         try
         {
-            activity.System.Ready.LogInformation("Executing step {workflow.step.index}.");
+            activity.System.Zero.LogInformation("Executing step {workflow.step.index}.");
             var exitCode = await startProcess.Invoke
             (
                 step.FileName,
@@ -42,15 +42,15 @@ public class ExecuteStep
             switch (exitCode)
             {
                 case null:
-                    activity.Domain.Oops.LogError("Step {workflow.step.index} did not complete.");
+                    activity.Domain.Last.LogError("Step {workflow.step.index} did not complete.");
                     break;
                 case 0:
-                    activity.Domain.Yeah.LogInformation("Step {workflow.step.index} completed in {scene.duration_ms:N0} ms.");
+                    activity.Domain.LogInformation("Step {workflow.step.index} completed in {scene.duration_ms:N0} ms.");
                     break;
                 default:
                 {
                     using var exitScope = logger.BeginScopeWith(("workflow.step.exit_code", exitCode));
-                    activity.Domain.Oops.LogError("Step {workflow.step.index} failed after {scene.duration_ms:N0} ms with exit code {workflow.step.exit_code}.");
+                    activity.Domain.Last.LogError("Step {workflow.step.index} failed after {scene.duration_ms:N0} ms with exit code {workflow.step.exit_code}.");
                 }
                     break;
             }
@@ -64,7 +64,7 @@ public class ExecuteStep
         }
         catch (Exception ex)
         {
-            activity.Domain.Oops.LogError(ex, "Step {workflow.step.index} failed after {scene.duration_ms:N0} ms with an exception.");
+            activity.Domain.Last.LogError(ex, "Step {workflow.step.index} failed after {scene.duration_ms:N0} ms with an exception.");
             return false;
         }
     }

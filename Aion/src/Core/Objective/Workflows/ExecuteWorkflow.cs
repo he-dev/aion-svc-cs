@@ -26,7 +26,7 @@ public class ExecuteWorkflow
             ("workflow.mode", workflow.TriggerMode)
         ]);
 
-        activity.Domain.Ready.LogInformation("Executing workflow '{@workflow.name}'.");
+        activity.Domain.Zero.LogInformation("Executing workflow '{@workflow.name}'.");
 
         var success = new List<bool>();
         try
@@ -51,16 +51,16 @@ public class ExecuteWorkflow
                 ("workflow.step.count.success", success.Count(result => result)),
                 ("workflow.step.count.failure", success.Count(result => !result))
             );
-            activity.Domain.Yeah.LogInformation("Workflow '{@workflow.name}' completed in {scene.duration_ms:N0} ms. Steps: {workflow.step.count.success} okay, {workflow.step.count_failure} failed.");
+            activity.Domain.Tick.LogInformation("Workflow '{@workflow.name}' completed in {scene.duration_ms:N0} ms. Steps: {workflow.step.count.success} okay, {workflow.step.count_failure} failed.");
         }
         catch (OperationCanceledException)
         {
-            activity.Domain.Oops.LogError("Workflow '{@workflow.name}' was canceled after {scene.duration_ms:N0} ms.");
+            activity.Domain.Last.LogError("Workflow '{@workflow.name}' was canceled after {scene.duration_ms:N0} ms.");
         }
 
         catch (Exception ex)
         {
-            activity.Domain.Oops.LogError(ex, "Workflow '{@workflow.name}' failed after {scene.duration_ms:N0} ms.");
+            activity.Domain.Last.LogError(ex, "Workflow '{@workflow.name}' failed after {scene.duration_ms:N0} ms.");
         }
     }
 }

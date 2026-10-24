@@ -23,7 +23,7 @@ public class LoadWorkflowSpec
 
         if (!File.Exists(workflowPath))
         {
-            logger.System.Bail.LogError("Workflow spec '{@workflow.name}' does not exist.");
+            logger.System.Last.LogError("Workflow spec '{@workflow.name}' does not exist.");
             return null;
         }
 
@@ -43,7 +43,7 @@ public class LoadWorkflowSpec
 
             if (json is null)
             {
-                logger.System.Oops.LogError("Workflow '{@workflow.name}' is null or empty.");
+                logger.System.Last.LogError("Workflow '{@workflow.name}' is null or empty.");
                 return null;
             }
 
@@ -78,13 +78,13 @@ public class LoadWorkflowSpec
                     })
                 ]
             };
-            logger.System.Yeah.LogDebug("Workflow '{@workflow.name}' is valid.");
 
+            logger.System.Last.LogDebug("Workflow '{@workflow.name}' is valid.");
             return spec;
         }
         catch (Exception e)
         {
-            logger.System.Oops.LogError(e, "An error occurred while deserializing '{@workflow.name}'.");
+            logger.System.Last.LogError(e, "An error occurred while deserializing '{@workflow.name}'.");
             return null;
         }
     }

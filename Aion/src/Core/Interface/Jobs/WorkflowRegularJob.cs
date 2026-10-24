@@ -21,21 +21,20 @@ public class WorkflowRegularJob
     public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
         var workflowPath = context.Trigger.JobDataMap.Get<WorkflowPath>(JobDataKeys.WorkflowPath);
-        var workflowPatch = context.Trigger.JobDataMap.Get<WorkflowMod>(JobDataKeys.WorkflowMod);
 
-        using var scope = logger.BeginScopeWith
-        (
+        using var about = logger.BeginScopeAbout<WorkflowRegularJob>
+        ([
             ("job.group", context.JobDetail.Key.Group),
             ("job.name", context.JobDetail.Key.Name),
             ("workflow.path", workflowPath),
             ("workflow.mode", WorkflowTriggerMode.Cron)
-        );
+        ]);
 
-        logger.System.LogDebug("Job '{job.group}:{job.name}' is executing.");
+        logger.System.Zero.LogDebug(null);
 
         try
         {
-            if (await composeWorkflow.From(workflowPath, workflowPatch) is {} workflow)
+            if (await composeWorkflow.From(workflowPath) is { } workflow)
             {
                 await executeWorkflow.Invoke(workflow, cancellationToken);
             }
@@ -43,15 +42,16 @@ public class WorkflowRegularJob
             {
                 await scheduleWorkflow.Deletion(context.Trigger);
             }
+
+            logger.System.Last.LogInformation(null);
         }
         catch (OperationCanceledException)
         {
-            logger.System.LogError("Job '{job.group}:{job.name}' was canceled.");
+            logger.System.Last.LogError("Job '{job.group}:{job.name}' was canceled.");
         }
         catch (Exception ex)
         {
-            // note: This should never happen.
-            logger.System.LogError(ex, "Job '{job.group}:{job.name}' failed.");
+            logger.System.Last.LogError(ex, "Job '{job.group}:{job.name}' failed.");
             throw new JobExecutionException(ex);
         }
     }

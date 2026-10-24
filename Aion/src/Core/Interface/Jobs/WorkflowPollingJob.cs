@@ -22,16 +22,16 @@ internal class WorkflowPollingJob
             ("job.name", context.JobDetail.Key.Name)
         ]);
 
-        scope.System.Ready.LogDebug("Executing '{job.group}:{job.name}'.");
+        scope.System.Zero.LogDebug("Executing '{job.group}:{job.name}'.");
 
         try
         {
             await scheduleWorkflow.AsCron();
-            scope.System.Yeah.LogDebug("Job '{job.group}:{job.name}' completed.");
+            scope.System.Tick.LogDebug("Job '{job.group}:{job.name}' completed.");
         }
         catch (Exception ex)
         {
-            scope.System.Oops.LogError(ex, "Job '{job.group}:{job.name}' failed.");
+            scope.System.Last.LogError(ex, "Job '{job.group}:{job.name}' failed.");
             throw new JobExecutionException(ex);
         }
     }
