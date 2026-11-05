@@ -9,6 +9,7 @@ using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Wiretap.Core;
 
 namespace Aion.Util.Buzz;
 
@@ -34,7 +35,7 @@ public class FindWorkflows
                 .AddExclude("loggers/**")
                 .Execute(new DirectoryInfoWrapper(new DirectoryInfo(workflowsDirectory)));
 
-        var workflows =
+        var matches =
             result.Files
                 .Select(x => x.Path)
                 .Select(path => new WorkflowPath(workflowsDirectory.ToSlash(), path.ToSlash()))
@@ -42,9 +43,22 @@ public class FindWorkflows
                 .ThenBy(x => x.Name)
                 .ToImmutableList();
 
-        logger.LogDebug("Found {workflows.count} workflows matching '{workflow.pattern}'.", workflows.Count, pattern);
+        var ambiguous = matches.GroupBy(w => w.Name).ToLookup(g => g.Count() > 1);
+        if(ambiguous[true].Any())
+        {
+            logger.With(Story.Domain).LogError("There are {workflow.count} ambiguous workflows", ambiguous[true].Count());
+            foreach (var workflow in ambiguous[true])
+            {
+                logger
+                    .With(Story.System)
+                    .LogError("Workflow '{workflow.name}' is ambiguous. Only one extension [json, yaml, yml] per name is allowed.", workflow);
+            }
+            return ImmutableArray<WorkflowPath>.Empty;
+        }
 
-        return workflows;
+        logger.With(Story.Domain).LogInformation("There are {workflow.count} workflows that match '{workflow.pattern}'.", matches.Count, pattern);
+
+        return [.. ambiguous[false].SelectMany(pathGroup => pathGroup)];
     }
 
     private static string NormalizePattern(string? pattern)

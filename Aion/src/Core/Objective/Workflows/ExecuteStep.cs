@@ -4,11 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Aion.Meta;
-using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Buzz;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
-using Activity = System.Diagnostics.Activity;
+using Wiretap.Core;
 
 namespace Aion.Core.Objective.Workflows;
 
@@ -20,7 +19,7 @@ public class ExecuteStep
 {
     public async Task<bool> AsProcess(Workflow.Step step, CancellationToken cancellationToken = default)
     {
-        using var activity = logger.BeginScopeAbout<ExecuteStep>
+        using var about = logger.BeginScopeAbout<ExecuteStep>
         ([
             ("workflow.step.index", step.Spec.Index),
             ("workflow.step.name", step.Name)
@@ -28,7 +27,8 @@ public class ExecuteStep
 
         try
         {
-            activity.System.Zero.LogInformation("Executing step {workflow.step.index}.");
+            about.Zero.With(Story.System).LogDebug(null);
+
             var exitCode = await startProcess.Invoke
             (
                 step.FileName,
@@ -42,15 +42,15 @@ public class ExecuteStep
             switch (exitCode)
             {
                 case null:
-                    activity.Domain.Last.LogError("Step {workflow.step.index} did not complete.");
+                    about.Last.With(Story.System).LogError("Step {workflow.step.index} did not complete.");
                     break;
                 case 0:
-                    activity.Domain.LogInformation("Step {workflow.step.index} completed in {scene.duration_ms:N0} ms.");
+                    about.Last.With(Story.System).LogInformation("Step {workflow.step.index} completed in {scene.duration_ms:N0} ms.");
                     break;
                 default:
                 {
                     using var exitScope = logger.BeginScopeWith(("workflow.step.exit_code", exitCode));
-                    activity.Domain.Last.LogError("Step {workflow.step.index} failed after {scene.duration_ms:N0} ms with exit code {workflow.step.exit_code}.");
+                    about.Last.With(Story.Domain).LogError("Step {workflow.step.index} failed after {scene.duration_ms:N0} ms with exit code {workflow.step.exit_code}.");
                 }
                     break;
             }
@@ -64,7 +64,7 @@ public class ExecuteStep
         }
         catch (Exception ex)
         {
-            activity.Domain.Last.LogError(ex, "Step {workflow.step.index} failed after {scene.duration_ms:N0} ms with an exception.");
+            about.Last.With(Story.Domain).LogError(ex, "Step {workflow.step.index} failed after {scene.duration_ms:N0} ms with an exception.");
             return false;
         }
     }

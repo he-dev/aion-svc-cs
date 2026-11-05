@@ -2,11 +2,11 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Aion.Core.Objective.Workflows;
-using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Buzz;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
 using Quartz;
+using Wiretap.Core;
 
 namespace Aion.Core.Interface.Jobs;
 
@@ -30,7 +30,7 @@ public class WorkflowCustomJob
             ("workflow.mode", WorkflowTriggerMode.User)
         );
 
-        logger.System.LogDebug("Job '{job.group}:{job.name}' is executing.");
+        logger.With(Story.System).LogDebug("Job '{job.group}:{job.name}' is executing.");
 
         try
         {
@@ -41,12 +41,12 @@ public class WorkflowCustomJob
         }
         catch (OperationCanceledException)
         {
-            logger.System.LogError("Job '{job.group}:{job.name}' was canceled.");
+            logger.With(Story.System).LogError("Job '{job.group}:{job.name}' was canceled.");
         }
         catch (Exception ex)
         {
             // note: This should never happen.
-            logger.System.LogError(ex, "Job '{job.group}:{job.name}' failed.");
+            logger.With(Story.System).LogError(ex, "Job '{job.group}:{job.name}' fails.");
             throw new JobExecutionException(ex);
         }
     }

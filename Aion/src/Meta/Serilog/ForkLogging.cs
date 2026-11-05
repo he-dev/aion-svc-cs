@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -6,7 +6,6 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
@@ -15,55 +14,65 @@ using Serilog.Formatting.Display;
 
 namespace Aion.Meta.Serilog;
 
-public sealed class ForkLogging(IServiceProvider services) : ILogEventSink, IObservable<LogEvent>
+public sealed class ForkLogging : ILogEventSink, IObservable<LogEvent>
 {
-    // note: Each observer registration owns its scope to reduce object nesting.
-    private ConcurrentDictionary<IObserver<LogEvent>, LogEventForkScope> Bugs { get; } = new(ReferenceEqualityComparer.Instance);
+    // meta: AsyncLocal ties fork registrations to the current async flow across awaits,
+    // so Emit only forwards to forks registered in that flow or inherited from its parent.
+    private readonly AsyncLocal<ImmutableList<Subscription>?> _subscriptions = new();
 
-    public void Emit(LogEvent logEvent)
+    private ImmutableList<Subscription> Subscriptions
     {
-        foreach (var (_, scope) in Bugs)
-        {
-            scope.OnNext(logEvent);
-        }
+        get => _subscriptions.Value ?? ImmutableList<Subscription>.Empty;
+        set => _subscriptions.Value = value;
     }
 
     // note: Hides this method to use a more descriptive name.
-    IDisposable IObservable<LogEvent>.Subscribe(IObserver<LogEvent> observer) => With(observer);
+    IDisposable IObservable<LogEvent>.Subscribe(IObserver<LogEvent> observer) => Into(observer);
 
-    public IDisposable With(IObserver<LogEvent> bug, string propertyName = "logging.forks")
+    public IDisposable Into(IObserver<LogEvent> fork)
     {
-        ArgumentNullException.ThrowIfNull(bug);
-        ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
+        ArgumentNullException.ThrowIfNull(fork);
 
-        // meta: Resolve the logger after the logging pipeline has been initialized to avoid circular dependencies.
-        var logger = services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ForkLogging>>();
-        var scope = new LogEventForkScope(logger, bug, propertyName);
-
-        // core: Duplicate subscription is not allowed.
-        if (!Bugs.TryAdd(bug, scope))
+        var subscriptions = Subscriptions;
+        if (subscriptions.Any(subscription => ReferenceEquals(subscription.Fork, fork)))
         {
-            scope.Dispose();
-            throw new InvalidOperationException("Observer is already subscribed.");
+            throw new InvalidOperationException("Fork is already subscribed.");
         }
 
-        return new Subscription(() =>
+        var registration = new Subscription(fork, registration =>
         {
-            if (Bugs.TryRemove(bug, out var removedScope))
-            {
-                removedScope.Dispose();
-            }
+            Subscriptions = Subscriptions.Remove(registration, ReferenceEqualityComparer.Instance);
         });
+
+        // core: Process subscription by inner first.
+        Subscriptions = subscriptions.Insert(0, registration);
+        return registration;
     }
 
-    private class Subscription(Action unsubscribe) : IDisposable
+    public void Emit(LogEvent logEvent)
     {
-        private Action? _unsubscribe = unsubscribe;
+        foreach (var subscription in Subscriptions)
+        {
+            subscription.Fork?.OnNext(logEvent);
+        }
+    }
 
-        public void Dispose() => Interlocked.Exchange(ref _unsubscribe, null)?.Invoke();
+    private sealed class Subscription(IObserver<LogEvent> observer, Action<Subscription> unsubscribe) : IDisposable
+    {
+        private IObserver<LogEvent>? _observer = observer;
+
+        public IObserver<LogEvent>? Fork => Volatile.Read(ref _observer);
+
+        public void Dispose()
+        {
+            // Child flows can still hold this registration after its scope ends.
+            Interlocked.Exchange(ref _observer, null);
+            unsubscribe(this);
+        }
     }
 }
 
+/// <summary>Forks logging into an in-memory collection.</summary>
 public class InMemoryFork : IObserver<LogEvent>, IEnumerable<LogEvent>
 {
     private ConcurrentQueue<LogEvent> Queue { get; } = new();
@@ -74,77 +83,12 @@ public class InMemoryFork : IObserver<LogEvent>, IEnumerable<LogEvent>
     IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)Queue).GetEnumerator();
 }
 
+/// <summary>Forks logging into the specified logger.</summary>
 public sealed class LoggerFork(ILogger logger) : IObserver<LogEvent>
 {
     public void OnNext(LogEvent logEvent) => logger.Write(logEvent);
     public void OnCompleted() { }
     public void OnError(Exception error) { }
-}
-
-// core: Preserve outer capture IDs because nested logger scopes would otherwise replace the same property's ID.
-internal sealed class LogEventForkScope : IObserver<LogEvent>, IDisposable
-{
-    private string PropertyName { get; }
-
-    // meta: Flow independent scope chains per property through async calls without sharing mutable state.
-    private static AsyncLocal<ImmutableDictionary<string, ImmutableStack<string>>?> CurrentIds { get; } = new();
-
-    private string Id { get; } = Guid.NewGuid().ToString("N");
-
-    private ImmutableDictionary<string, ImmutableStack<string>> PreviousIds { get; }
-
-    private IObserver<LogEvent> Fork { get; }
-
-    private IDisposable? LoggerScope { get; }
-
-    public LogEventForkScope(Microsoft.Extensions.Logging.ILogger logger, IObserver<LogEvent> fork, string propertyName)
-    {
-        Fork = fork;
-        PropertyName = propertyName;
-        PreviousIds = CurrentIds.Value ?? ImmutableDictionary<string, ImmutableStack<string>>.Empty;
-
-        // core: Include outer observers so they also capture events from nested scopes.
-        var ids = PreviousIds.GetValueOrDefault(PropertyName, ImmutableStack<string>.Empty).Push(Id);
-
-        // util: Publish the IDs as a sequence under one stable log property name.
-        LoggerScope = logger.BeginScope(new Dictionary<string, object>
-        {
-            [PropertyName] = ids.ToArray()
-        });
-
-        CurrentIds.Value = PreviousIds.SetItem(PropertyName, ids);
-    }
-
-    public void OnCompleted() => Fork.OnCompleted();
-
-    public void OnError(Exception error) => Fork.OnError(error);
-
-    public void OnNext(LogEvent logEvent)
-    {
-        if (Matches(logEvent))
-        {
-            Fork.OnNext(logEvent);
-        }
-    }
-
-    private bool Matches(LogEvent logEvent)
-    {
-        return
-            logEvent
-                .Properties
-                .TryGetValue(PropertyName, out var property)
-            && property is SequenceValue ids
-            && ids.Elements.Any(value => value is ScalarValue { Value: string id } && id == Id);
-    }
-
-    public void Dispose()
-    {
-        // core: Observer scopes must be disposed in reverse creation order.
-        LoggerScope?.Dispose();
-
-        // meta: Restore the enclosing observer context for subsequent scopes.
-        CurrentIds.Value = PreviousIds;
-    }
 }
 
 public static class LogEventForkExtensions
@@ -175,6 +119,7 @@ public static class LogEventForkExtensions
         {
             return scalar;
         }
+
         return default;
     }
 

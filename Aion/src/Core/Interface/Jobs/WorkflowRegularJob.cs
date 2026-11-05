@@ -2,11 +2,11 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Aion.Core.Objective.Workflows;
-using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Buzz;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
 using Quartz;
+using Wiretap.Core;
 
 namespace Aion.Core.Interface.Jobs;
 
@@ -30,7 +30,7 @@ public class WorkflowRegularJob
             ("workflow.mode", WorkflowTriggerMode.Cron)
         ]);
 
-        logger.System.Zero.LogDebug(null);
+        about.Zero.With(Story.System).LogDebug(null);
 
         try
         {
@@ -43,15 +43,15 @@ public class WorkflowRegularJob
                 await scheduleWorkflow.Deletion(context.Trigger);
             }
 
-            logger.System.Last.LogInformation(null);
+            about.Zero.With(Story.System).LogInformation(null);
         }
         catch (OperationCanceledException)
         {
-            logger.System.Last.LogError("Job '{job.group}:{job.name}' was canceled.");
+            about.Zero.With(Story.System).LogError("Job '{job.group}:{job.name}' was canceled.");
         }
         catch (Exception ex)
         {
-            logger.System.Last.LogError(ex, "Job '{job.group}:{job.name}' failed.");
+            about.Zero.With(Story.System).LogError(ex, "Job '{job.group}:{job.name}' failed.");
             throw new JobExecutionException(ex);
         }
     }

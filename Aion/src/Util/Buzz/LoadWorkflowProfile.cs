@@ -6,9 +6,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Aion.Meta;
-using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
+using Wiretap.Core;
 
 namespace Aion.Util.Buzz;
 
@@ -33,7 +33,7 @@ public class LoadWorkflowProfile
             var profilePath = Path.Join(dir.FullName, ".profile.json");
             if (await FromJsonOrNull(profilePath) is { } current)
             {
-                logger.System.LogDebug("Merging logger-profile with '{profile.path}'.", profilePath);
+                logger.With(Story.System).LogDebug("Merging logger-profile with '{profile.path}'.", profilePath);
                 profile += current;
             }
         }
@@ -47,7 +47,7 @@ public class LoadWorkflowProfile
 
         if (!File.Exists(profilePath))
         {
-            logger.System.LogError("Cannot load workflow-profile from '{profile.path}' because it does not exist.", profilePath);
+            logger.With(Story.System).LogError("Cannot load workflow-profile from '{profile.path}' because it does not exist.", profilePath);
             return null;
         }
 
@@ -67,7 +67,7 @@ public class LoadWorkflowProfile
 
             if (profile is null)
             {
-                logger.System.LogError("File '{profile.path}' is empty. It needs to contain a workflow-profile.");
+                logger.With(Story.System).LogError("File '{profile.path}' is empty. It needs to contain a workflow-profile.");
                 return null;
             }
 
@@ -75,7 +75,7 @@ public class LoadWorkflowProfile
             {
                 foreach (var issue in issues)
                 {
-                    logger.System.LogError("{profile.issue}", issue);
+                    logger.With(Story.System).LogError("{profile.issue}", issue);
                 }
 
                 return null;
@@ -89,7 +89,7 @@ public class LoadWorkflowProfile
         }
         catch (Exception e)
         {
-            logger.LogError(e, "An error occurred while deserializing the workflow profile '{profile.path}'.");
+            logger.With(Story.System).LogError(e, "File '{profile.path}' fails to deserialize as workflow-profile.");
             return null;
         }
     }

@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Aion.Meta.Logging.Wiretap;
 using Microsoft.Extensions.Logging;
+using Wiretap.Core;
 
 namespace Aion.Util.Buzz;
 
@@ -59,16 +59,15 @@ public class StartProcess(ILogger<StartProcess> logger)
             {
                 try
                 {
-                    logger.Domain.LogInformation
+                    logger.With(Story.System, ("process.id", process.Id)).LogInformation
                     (
-                        "Process {aion.workflow.process.id} started by '{aion.workflow.process.file_name}' with arguments '{aion.workflow.process.arguments}'.",
-                        process.Id,
+                        "Process '{aion.workflow.process.file_name}' runs with arguments '{aion.workflow.process.arguments}'.",
                         process.StartInfo.FileName,
                         process.StartInfo.Arguments
                     );
 
                     // util: This is a convenience ready-to-use command for killing the process.
-                    logger.System.LogDebug
+                    logger.With(Story.System).LogDebug
                     (
                         "taskkill /F /FI \"PID eq {aion.workflow.process.id}\" /FI \"SESSION eq {aion.workflow.process.sid}\" /FI \"IMAGENAME eq {aion.workflow.process.image_name}\" /FI \"SERVICES eq false\"",
                         process.Id,
@@ -98,7 +97,7 @@ public class StartProcess(ILogger<StartProcess> logger)
         {
             if (timeoutCts.IsCancellationRequested)
             {
-                logger.Domain.LogWarning("Process {workflow.process.id} timed out after {workflow.process.timeout_s} s.", process.Id, timeout.TotalSeconds);
+                logger.With(Story.System).LogWarning("Process {workflow.process.id} times out after {workflow.process.timeout_s} s.", process.Id, timeout.TotalSeconds);
             }
 
             var graceTimeout = TimeSpan.FromSeconds(10);
@@ -108,23 +107,23 @@ public class StartProcess(ILogger<StartProcess> logger)
                 {
                     process.Kill(entireProcessTree: true);
                     // core: Let's give the process a chance to exit.
-                    logger.System.LogDebug("Waiting {workflow.process.kill_timeout_s} s for process {workflow.process.id} to exit.", graceTimeout.TotalSeconds, process.Id);
+                    logger.With(Story.System).LogDebug("Waiting {workflow.process.kill_timeout_s} s for process {workflow.process.id} to exit.", graceTimeout.TotalSeconds, process.Id);
                     using var cleanupCts = new CancellationTokenSource(graceTimeout);
                     await process.WaitForExitAsync(cleanupCts.Token);
-                    logger.System.LogInformation("Process {workflow.process.id} was killed.", process.Id);
+                    logger.With(Story.System).LogInformation("Process {workflow.process.id} was killed.", process.Id);
                 }
             }
             catch (OperationCanceledException)
             {
-                logger.System.LogWarning("Process {workflow.process.id} termination could not be confirmed within {workflow.process.kill_timeout_s} s after the kill request.", process.Id, graceTimeout.TotalSeconds);
+                logger.With(Story.System).LogWarning("Process {workflow.process.id} termination could not be confirmed within {workflow.process.kill_timeout_s} s after the kill request.", process.Id, graceTimeout.TotalSeconds);
             }
             catch (InvalidOperationException) when (process.HasExited)
             {
-                logger.System.LogInformation("Process {workflow.process.id} had already exited.", process.Id);
+                logger.With(Story.System).LogInformation("Process {workflow.process.id} had already exited.", process.Id);
             }
             catch (Exception ex)
             {
-                logger.System.LogError(ex, "Unable to kill process {workflow.process.id}.", process.Id);
+                logger.With(Story.System).LogError(ex, "Unable to kill process {workflow.process.id}.", process.Id);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -140,14 +139,14 @@ public class StartProcess(ILogger<StartProcess> logger)
         if (e.Data is null)
         {
             stdStreamCompletion.TrySetResult(true);
-            logger.System.LogDebug("End of console stream.");
+            logger.With(Story.System).LogDebug("End of console stream.");
         }
         else
         {
             switch (consoleStreamType)
             {
-                case ConsoleStreamType.StdOut: logger.Domain.LogInformation("{StdOut}: {workflow.process.stdout}", consoleStreamType, e.Data); break;
-                case ConsoleStreamType.StdErr: logger.Domain.LogError("{StdErr}: {workflow.process.stderr}", consoleStreamType, e.Data); break;
+                case ConsoleStreamType.StdOut: logger.With(Story.System).LogInformation("{StdOut}: {workflow.process.stdout}", consoleStreamType, e.Data); break;
+                case ConsoleStreamType.StdErr: logger.With(Story.System).LogError("{StdErr}: {workflow.process.stderr}", consoleStreamType, e.Data); break;
             }
         }
     }

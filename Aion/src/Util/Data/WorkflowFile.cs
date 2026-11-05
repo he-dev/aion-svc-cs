@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace Aion.Util.Data;
 
 // note: This class is deserialized from workflow JSON.
-public record WorkflowSpecJson
+public record WorkflowFile
 {
     public Step?[]? Steps { get; init; }
 

@@ -2,9 +2,9 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Aion.Core.Objective.Workflows;
-using Aion.Meta.Logging.Wiretap;
 using Microsoft.Extensions.Logging;
 using Quartz;
+using Wiretap.Core;
 
 namespace Aion.Core.Interface.Jobs;
 
@@ -22,16 +22,16 @@ internal class WorkflowPollingJob
             ("job.name", context.JobDetail.Key.Name)
         ]);
 
-        scope.System.Zero.LogDebug("Executing '{job.group}:{job.name}'.");
+        scope.Zero.With(Story.System).LogDebug("Executing '{job.group}:{job.name}'.");
 
         try
         {
             await scheduleWorkflow.AsCron();
-            scope.System.Tick.LogDebug("Job '{job.group}:{job.name}' completed.");
+            scope.Tick.With(Story.System).LogDebug("Job '{job.group}:{job.name}' completed.");
         }
         catch (Exception ex)
         {
-            scope.System.Last.LogError(ex, "Job '{job.group}:{job.name}' failed.");
+            scope.Last.With(Story.System).LogError(ex, "Job '{job.group}:{job.name}' failed.");
             throw new JobExecutionException(ex);
         }
     }

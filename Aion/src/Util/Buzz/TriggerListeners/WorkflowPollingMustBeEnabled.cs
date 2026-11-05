@@ -1,11 +1,11 @@
 ﻿using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Data.Scheduler;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Quartz;
+using Wiretap.Core;
 
 namespace Aion.Util.Buzz.TriggerListeners;
 
@@ -21,7 +21,7 @@ public class WorkflowPollingMustBeEnabled
     {
         if (schedulerOptions.Value.Polling.Disabled)
         {
-            using var scope = logger.BeginScopeFrom(new { TriggerName = trigger.Key.Name });
+            using var scope = logger.BeginScopeWith(("trigger.name", trigger.Key.Name));
             logger.LogWarning("Workflow polling from '{scheduler.home}' is disabled - pausing it.", schedulerOptions.Value.Home);
             await context.Scheduler.PauseJob(context.JobDetail.Key, cancellationToken);
             return true;

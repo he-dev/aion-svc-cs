@@ -2,10 +2,10 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Threading.Tasks;
-using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Buzz;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
+using Wiretap.Core;
 
 namespace Aion.Core.Objective.Downtimes;
 
@@ -17,7 +17,7 @@ public class StartDowntime
 {
     public async Task<IImmutableList<StartDowntimeResult>> Now(string? workflowPattern, WorkflowDowntime downtime)
     {
-        using var scope = logger.BeginScopeFrom(new { workflowPattern });
+        using var scope = logger.BeginScopeWith(("workflow.pattern", workflowPattern));
         try
         {
             var workflowPaths = new List<StartDowntimeResult>();
@@ -36,7 +36,7 @@ public class StartDowntime
                 }
             }
 
-            return workflowPaths.ToImmutableList();
+            return [.. workflowPaths];
         }
         catch (Exception ex)
         {

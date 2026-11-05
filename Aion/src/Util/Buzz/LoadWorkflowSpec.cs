@@ -5,9 +5,9 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
+using Wiretap.Core;
 
 namespace Aion.Util.Buzz;
 
@@ -17,55 +17,54 @@ public class LoadWorkflowSpec
     ValidateWorkflowFile validateWorkflowFile
 )
 {
-    public async Task<WorkflowSpec?> FromJsonOrNull(WorkflowPath workflowPath)
+    public async Task<WorkflowSpec?> FromFileOrNull(WorkflowPath workflowPath)
     {
         using var scope = logger.BeginScopeWith(("@workflow.name", workflowPath));
 
         if (!File.Exists(workflowPath))
         {
-            logger.System.Last.LogError("Workflow spec '{@workflow.name}' does not exist.");
+            logger.With(Story.Domain).LogError("Workflow spec '{@workflow.name}' does not exist.");
             return null;
         }
 
+        var data = workflowPath.Extension.ToLower() switch
+        {
+            ".json" => await FromJsonOrNull(workflowPath),
+            ".yaml" or ".yml" => await FromYamlOrNull(workflowPath),
+            _ => throw new NotSupportedException($"Extension '{workflowPath.Extension}' is not supported.")
+        };
+
+        if (data is null)
+        {
+            logger.With(Story.Domain).LogError("Workflow '{@workflow.name}' is null or empty.");
+            return null;
+        }
+
+        if (validateWorkflowFile.That(data).ToList() is { Count: > 0 } issues)
+        {
+            foreach (var issue in issues)
+            {
+                logger.With(Story.Domain).LogError("{workflow.issue}", issue);
+            }
+
+            return null;
+        }
+
+        logger.With(Story.Domain).LogDebug("Workflow '{@workflow.name}' passes validations.");
+
         try
         {
-            await using var fileStream = new FileStream(workflowPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var json = await JsonSerializer.DeserializeAsync<WorkflowSpecJson>(fileStream, new JsonSerializerOptions
-            {
-                ReadCommentHandling = JsonCommentHandling.Skip,
-                PropertyNameCaseInsensitive = true,
-                AllowTrailingCommas = true,
-                Converters =
-                {
-                    new JsonStringEnumConverter()
-                }
-            });
-
-            if (json is null)
-            {
-                logger.System.Last.LogError("Workflow '{@workflow.name}' is null or empty.");
-                return null;
-            }
-
-            if (validateWorkflowFile.That(json).ToList() is { Count: > 0 } issues)
-            {
-                foreach (var issue in issues)
-                {
-                    logger.System.LogError("{workflow.issue}", issue);
-                }
-            }
-
             // note: At this point we know that the file is okay.
-            var spec = new WorkflowSpec
+            return new WorkflowSpec
             {
                 Path = workflowPath,
-                Cron = json.Cron!,
-                Disabled = json.Disabled == true,
-                Variables = json.Variables!.ToImmutableDictionary(x => x.Key, x => x.Value!),
-                Logger = json.Logger,
+                Cron = data.Cron!,
+                Disabled = data.Disabled == true,
+                Variables = data.Variables?.ToImmutableDictionary(x => x.Key, x => x.Value!) ?? [],
+                Logger = data.Logger,
                 Steps =
                 [
-                    .. json.Steps!.Select((step, index) => new WorkflowSpec.Step
+                    .. data.Steps!.Select((step, index) => new WorkflowSpec.Step
                     {
                         Index = index,
                         Name = step!.Name,
@@ -78,15 +77,52 @@ public class LoadWorkflowSpec
                     })
                 ]
             };
-
-            logger.System.Last.LogDebug("Workflow '{@workflow.name}' is valid.");
-            return spec;
         }
         catch (Exception e)
         {
-            logger.System.Last.LogError(e, "An error occurred while deserializing '{@workflow.name}'.");
+            scope.With(Story.System).LogError(e, "Workflow spec '{@workflow.name}' does not deserialize.");
             return null;
         }
     }
 
+    private async Task<WorkflowFile?> FromJsonOrNull(WorkflowPath workflowPath)
+    {
+        try
+        {
+            await using var fileStream = new FileStream(workflowPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return await JsonSerializer.DeserializeAsync<WorkflowFile>(fileStream, new JsonSerializerOptions
+            {
+                ReadCommentHandling = JsonCommentHandling.Skip,
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas = true,
+                Converters =
+                {
+                    new JsonStringEnumConverter()
+                }
+            });
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
+    }
+
+    private async Task<WorkflowFile?> FromYamlOrNull(WorkflowPath workflowPath)
+    {
+        try
+        {
+            var contents = await File.ReadAllTextAsync(workflowPath);
+            var deserializer =
+                new YamlDotNet
+                        .Serialization
+                        .DeserializerBuilder()
+                    .WithCaseInsensitivePropertyMatching()
+                    .Build();
+            return deserializer.Deserialize<WorkflowFile>(contents);
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
+    }
 }

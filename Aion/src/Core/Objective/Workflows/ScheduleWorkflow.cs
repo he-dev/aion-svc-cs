@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Aion.Core.Interface.Jobs;
-using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Buzz;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
 using Quartz;
+using Wiretap.Core;
 
 namespace Aion.Core.Objective.Workflows;
 
@@ -28,7 +28,7 @@ public class ScheduleWorkflow
             var workflow = await composeWorkflow.From(workflowPath);
             if (workflow is null)
             {
-                logger.Domain.Last.LogError("Skipping workflow '{@workflow.name}' because it did not load.", workflowPath);
+                logger.LogError("Skipping workflow '{@workflow.name}' because it did not load.", workflowPath);
                 continue;
             }
 
@@ -39,7 +39,7 @@ public class ScheduleWorkflow
                 ("@workflow.name", workflowPath),
                 ("workflow.trigger.key", trigger.Key.ToString())
             ]);
-            about.System.Zero.LogDebug(null);
+            about.Zero.With(Story.System).LogDebug(null);
 
             // note: This is pretty impossible, but just in case.
             var cronTrigger = trigger as ICronTrigger ?? throw new InvalidOperationException($"{nameof(AsCron)} supports only cron triggers: {trigger.Key}");
@@ -50,15 +50,15 @@ public class ScheduleWorkflow
                 // core: Compare the cron expressions.
                 if (cronTrigger is { CronExpressionString: { } otherCron } && currentCron.Equals(otherCron))
                 {
-                    about.Domain.Last.LogInformation("Workflow '{@workflow.name}' has not changed.");
+                    about.Last.With(Story.Domain).LogInformation("Workflow '{@workflow.name}' has not changed.");
                     continue;
                 }
 
                 using var cronScope = logger.BeginScopeWith(("aion.workflow.trigger.cron", cronTrigger.CronExpressionString));
-                about.Domain.LogInformation("Workflow '{@workflow.name}' has a new schedule: '{workflow.trigger.cron}'.", workflowPath, cronTrigger.CronExpressionString);
+                about.With(Story.Domain).LogInformation("Workflow '{@workflow.name}' has a new schedule: '{workflow.trigger.cron}'.", workflowPath, cronTrigger.CronExpressionString);
                 if (await scheduler.RescheduleJob(trigger.Key, trigger) is { } next)
                 {
-                    about.Domain.Last.LogInformation("Workflow '{@workflow.name}' has been rescheduled to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.", workflowPath, cronTrigger.CronExpressionString, next);
+                    about.Last.With(Story.Domain).LogInformation("Workflow '{@workflow.name}' has been rescheduled to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.", workflowPath, cronTrigger.CronExpressionString, next);
                 }
             }
             else
@@ -72,7 +72,7 @@ public class ScheduleWorkflow
 
                 var next = await scheduler.ScheduleJob(jobDetail, trigger);
                 using var _ = logger.BeginScopeWith(("workflow.trigger.next", next));
-                about.Domain.Last.LogInformation("Workflow '{@workflow.name}' scheduled to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.", workflowPath, cronTrigger.CronExpressionString, next);
+                about.Last.With(Story.Domain).LogInformation("Workflow '{@workflow.name}' scheduled to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.", workflowPath, cronTrigger.CronExpressionString, next);
             }
         }
     }
@@ -86,7 +86,7 @@ public class ScheduleWorkflow
             var workflow = await composeWorkflow.From(workflowPath, workflowMod);
             if (workflow is null)
             {
-                logger.Domain.Last.LogError("Skipping workflow '{@workflow.name}' because it did not load.", workflowPath);
+                logger.With(Story.Domain).LogError("Skipping workflow '{@workflow.name}' because it did not load.", workflowPath);
                 continue;
             }
 
@@ -105,7 +105,7 @@ public class ScheduleWorkflow
                 if (await scheduler.RescheduleJob(trigger.Key, trigger) is { } next)
                 {
                     using var _ = logger.BeginScopeWith(("workflow.trigger.next", next));
-                    about.Domain.Last.LogInformation("Trigger '{workflow.trigger.key}' rescheduled. Next execution at '{workflow.trigger.next}'.");
+                    about.Last.With(Story.Domain).LogInformation("Trigger '{workflow.trigger.key}' rescheduled. Next execution at '{workflow.trigger.next}'.");
                 }
             }
             else
@@ -121,7 +121,7 @@ public class ScheduleWorkflow
 
                 var nextNew = await scheduler.ScheduleJob(jobDetail, trigger);
                 using var _ = logger.BeginScopeWith(("workflow.trigger.next", nextNew));
-                about.Domain.Last.LogInformation("Trigger '{workflow.trigger.key}' scheduled. Next execution at '{workflow.trigger.next}'.");
+                about.Last.With(Story.Domain).LogInformation("Trigger '{workflow.trigger.key}' scheduled. Next execution at '{workflow.trigger.next}'.");
             }
         }
     }
@@ -139,16 +139,16 @@ public class ScheduleWorkflow
         {
             if (await scheduler.DeleteJob(trigger.JobKey))
             {
-                logger.System.LogInformation("Trigger '{workflow.trigger.key}' has been deleted.");
+                scope.Last.With(Story.System).LogInformation("Trigger '{workflow.trigger.key}' has been deleted.");
             }
             else
             {
-                logger.System.LogInformation("Trigger '{workflow.trigger.key}' has not been deleted because it does not exist.");
+                scope.Last.With(Story.System).LogInformation("Trigger '{workflow.trigger.key}' has not been deleted because it does not exist.");
             }
         }
         catch (Exception e)
         {
-            logger.System.LogError(e, "Unable to delete trigger '{workflow.trigger.key}'.");
+            scope.Last.With(Story.System).LogError(e, "Unable to delete trigger '{workflow.trigger.key}'.");
         }
     }
 }

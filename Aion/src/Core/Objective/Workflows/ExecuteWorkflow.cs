@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Aion.Meta.Logging.Wiretap;
 using Aion.Meta.Serilog;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
+using Wiretap.Core;
 
 namespace Aion.Core.Objective.Workflows;
 
@@ -19,27 +19,27 @@ public class ExecuteWorkflow
 {
     public async Task Invoke(Workflow workflow, CancellationToken cancellationToken = default)
     {
-        using var loggerBug = forkLogging.With(new LoggerFork(workflow.Logger));
-        using var activity = logger.BeginScopeAbout<ExecuteWorkflow>
+        using var loggerBug = forkLogging.Into(new LoggerFork(workflow.Logger));
+        using var about = logger.BeginScopeAbout<ExecuteWorkflow>
         ([
             ("@workflow.name", workflow.Spec.Path),
             ("workflow.mode", workflow.TriggerMode)
         ]);
 
-        activity.Domain.Zero.LogInformation("Executing workflow '{@workflow.name}'.");
+        about.Zero.With(Story.System).LogDebug(null);
 
-        var success = new List<bool>();
+        var stepResults = new List<bool>();
         try
         {
             foreach (var step in workflow.Steps)
             {
                 if (step.Enabled)
                 {
-                    success.Add(await executeStep.AsProcess(step, cancellationToken));
+                    stepResults.Add(await executeStep.AsProcess(step, cancellationToken));
                 }
                 else
                 {
-                    activity.Domain.LogInformation("Skipping step {workflow.step.index} because it is disabled.", step.Index);
+                    about.Tick.With(Story.System).LogInformation("Skipping step {workflow.step.index} because it is disabled.", step.Index);
                 }
             }
 
@@ -48,19 +48,27 @@ public class ExecuteWorkflow
             using var stats = logger.BeginScopeWith
             (
                 ("workflow.step.count.enabled", workflow.Steps.Count(step => step.Enabled)),
-                ("workflow.step.count.success", success.Count(result => result)),
-                ("workflow.step.count.failure", success.Count(result => !result))
+                ("workflow.step.count.success", stepResults.Count(result => result)),
+                ("workflow.step.count.failure", stepResults.Count(result => !result))
             );
-            activity.Domain.Tick.LogInformation("Workflow '{@workflow.name}' completed in {scene.duration_ms:N0} ms. Steps: {workflow.step.count.success} okay, {workflow.step.count_failure} failed.");
+            about
+                .Last
+                .With(Story.System)
+                .LogInformation("Workflow '{@workflow.name}' completes in {scene.duration_ms:N0} ms. Steps: {workflow.step.count.success} okay, {workflow.step.count_failure} failed.");
         }
         catch (OperationCanceledException)
         {
-            activity.Domain.Last.LogError("Workflow '{@workflow.name}' was canceled after {scene.duration_ms:N0} ms.");
+            about.Last.With(Story.System).LogError("Workflow '{@workflow.name}' canceled after {scene.duration_ms:N0} ms.");
         }
 
         catch (Exception ex)
         {
-            activity.Domain.Last.LogError(ex, "Workflow '{@workflow.name}' failed after {scene.duration_ms:N0} ms.");
+            about.Last.With(Story.System).LogError(ex, "Workflow '{@workflow.name}' fails after {scene.duration_ms:N0} ms.");
         }
+    }
+
+    public Task<bool> Step(Workflow.Step step, CancellationToken cancellationToken)
+    {
+        return executeStep.AsProcess(step, cancellationToken);
     }
 }

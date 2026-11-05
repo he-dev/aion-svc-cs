@@ -3,10 +3,10 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Data;
 using Microsoft.Extensions.Logging;
 using Quartz;
+using Wiretap.Core;
 
 namespace Aion.Util.Buzz.TriggerListeners;
 
@@ -22,7 +22,7 @@ public class WorkflowCannotExecuteDuringDowntime
     {
         var workflowPath = trigger.JobDataMap.GetString(nameof(WorkflowPath))!;
 
-        using var scope = logger.BeginScopeFrom(new { WorkflowName = workflowPath });
+        using var scope = logger.BeginScopeWith(("@workflow.name", workflowPath));
 
         try
         {
@@ -32,11 +32,11 @@ public class WorkflowCannotExecuteDuringDowntime
             {
                 if (workflowDowntime.Status == WorkflowDowntimeStatus.Expired)
                 {
-                    logger.LogWarning("Workflow downtime has expired on {ExpiresOn} and will be deleted.", workflowDowntime.EndsOnUtc.ToLocalTime());
+                    logger.LogWarning("Workflow downtime has expired on {downtime.expires_at} and will be deleted.", workflowDowntime.EndsOnUtc.ToLocalTime());
                     await workflowDowntime.EndsNow();
                 }
 
-                logger.LogDebug("Workflow '{WorkflowName}' is currently {Status}.", workflowPath, workflowDowntime.Status);
+                logger.LogDebug("Workflow '{@workflow.name}' is currently {Status}.", workflowPath, workflowDowntime.Status);
                 return workflowDowntime.Status == WorkflowDowntimeStatus.Ongoing;
             }
         }
@@ -60,7 +60,7 @@ public class WorkflowCannotExecuteDuringDowntime
             return true;
         }
 
-        logger.LogDebug("Workflow '{WorkflowName}' does not have an ongoing downtime.", workflowPath);
+        logger.LogDebug("Workflow '{@workflow.name}' does not have an ongoing downtime.", workflowPath);
         return false;
     }
 
@@ -68,8 +68,8 @@ public class WorkflowCannotExecuteDuringDowntime
     {
         var workflowPath = trigger.JobDataMap.GetString(nameof(WorkflowPath))!;
 
-        using var scope = logger.BeginScopeFrom(new { WorkflowPath = workflowPath });
-        logger.LogDebug("Workflow trigger '{TriggerName}' has fired.", trigger.Key.Name);
+        using var scope = logger.BeginScopeWith(("@workflow.name", workflowPath));
+        logger.LogDebug("Workflow trigger '{trigger.name}' has fired.", trigger.Key.Name);
         return ValueTask.CompletedTask;
     }
 
@@ -77,8 +77,8 @@ public class WorkflowCannotExecuteDuringDowntime
     {
         var workflowPath = trigger.JobDataMap.GetString(nameof(WorkflowPath))!;
 
-        using var scope = logger.BeginScopeFrom(new { WorkflowPath = workflowPath });
-        logger.LogWarning("Workflow trigger '{TriggerName}' has misfired.", trigger.Key.Name);
+        using var scope = logger.BeginScopeWith(("@workflow.name", workflowPath));
+        logger.LogWarning("Workflow trigger '{trigger.name}' has misfired.", trigger.Key.Name);
         return ValueTask.CompletedTask;
     }
 

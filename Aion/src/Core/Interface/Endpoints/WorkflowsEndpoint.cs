@@ -37,7 +37,7 @@ public static class WorkflowsEndpoint
     private static async Task<IResult> StartNow([AsParameters] ScheduleRequest parameters, [FromBody] WorkflowStartNowBody body)
     {
         var inMemoryFork = new InMemoryFork();
-        using var unsubscribe = parameters.ForkLogging.With(inMemoryFork);
+        using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
         await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowMod
         {
             StartAt = DateTimeOffset.UtcNow,
@@ -49,7 +49,7 @@ public static class WorkflowsEndpoint
     private static async Task<IResult> StartIn([AsParameters] ScheduleRequest parameters, [FromBody] WorkflowStartInBody body)
     {
         var inMemoryFork = new InMemoryFork();
-        using var unsubscribe = parameters.ForkLogging.With(inMemoryFork);
+        using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
         await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowMod
         {
             StartAt = DateTimeOffset.UtcNow + body.Wait,
@@ -62,7 +62,7 @@ public static class WorkflowsEndpoint
     private static async Task<IResult> StartAt([AsParameters] ScheduleRequest parameters, [FromBody] WorkflowStartAtBody body)
     {
         var inMemoryFork = new InMemoryFork();
-        using var unsubscribe = parameters.ForkLogging.With(inMemoryFork);
+        using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
         await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowMod
         {
             StartAt = body.WhenUtc,
@@ -75,7 +75,7 @@ public static class WorkflowsEndpoint
     private static async Task<IResult> Synchronize([AsParameters] ScheduleRequest parameters)
     {
         var inMemoryFork = new InMemoryFork();
-        using var unsubscribe = parameters.ForkLogging.With(inMemoryFork);
+        using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
 
         await parameters.ScheduleWorkflow.AsCron();
 

@@ -3,11 +3,11 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
-using Aion.Meta.Logging.Wiretap;
 using Aion.Util.Data;
 using Aion.Util.Data.Scheduler;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Wiretap.Core;
 
 namespace Aion.Util.Buzz;
 
@@ -23,13 +23,13 @@ public class ComposeWorkflow
     public async Task<Workflow?> From(WorkflowPath workflowPath, WorkflowMod? mod = null)
     {
         using var scope = logger.BeginScopeWith(("@workflow.name", workflowPath));
-        logger.LogDebug("Composing workflow '{@workflow.name}'.", workflowPath);
+        logger.With(Story.System).LogDebug("Composing workflow '{@workflow.name}'.", workflowPath);
 
-        var spec = await loadWorkflowSpec.FromJsonOrNull(workflowPath);
+        var spec = await loadWorkflowSpec.FromFileOrNull(workflowPath);
 
         if (spec is null)
         {
-            logger.System.Last.LogDebug("Cannot load workflow '{@workflow.name}' because there is no spec.");
+            logger.With(Story.System).LogDebug("Cannot load workflow '{@workflow.name}' because there is no spec.");
             return null;
         }
 
@@ -40,7 +40,7 @@ public class ComposeWorkflow
         {
             Spec = spec,
             Enabled = !spec.Disabled,
-            Logger = await loadLoggingPreset.FromJsonOrDefault(spec.Logger, Serilog.Core.Logger.None),
+            Logger = await loadLoggingPreset.FromFromOrDefault(spec.Logger, Serilog.Core.Logger.None),
             Trigger = CreateWorkflowTrigger.Cron(spec.Path, spec.Cron),
             Variables = spec.Variables.ToImmutableDictionary(),
             Steps = []
@@ -64,7 +64,7 @@ public class ComposeWorkflow
 
         if (steps[true].Any())
         {
-            logger.System.Last.LogDebug("Cannot load workflow '{@workflow.name}' because it contains {workflow.step.count.invalid} invalid steps.", workflowPath, steps[true].Count());
+            logger.With(Story.System).LogDebug("Cannot load workflow '{@workflow.name}' because it contains {workflow.step.count.invalid} invalid steps.", workflowPath, steps[true].Count());
             return null;
         }
 
@@ -110,7 +110,7 @@ public class ComposeWorkflow
         }
         catch (Exception ex)
         {
-            logger.System.Last.LogError(ex, "Failed to create step {workflow.step.index}: {workflow.step.exception:l}.", spec.Index, ex.Message);
+            logger.With(Story.System).LogError(ex, "Cannot create step {workflow.step.index} because: {workflow.step.exception:l}.", spec.Index, ex.Message);
             return null;
         }
     }
