@@ -1,8 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Threading.Tasks;
+using Aion.Data;
 using Aion.Util;
-using Aion.Util.Data;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
 

@@ -3,11 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Aion.Core.Objective.Workflows;
+using Aion.Core.Magic.Workflows;
 using Aion.Core.Services;
+using Aion.Data;
 using Aion.Util;
-using Aion.Util.Buzz;
-using Aion.Util.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 

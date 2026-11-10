@@ -2,11 +2,11 @@
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
-using Aion.Core.Objective.Workflows;
+using Aion.Core.Magic.Workflows;
 using Aion.Core.Services;
+using Aion.Data;
 using Aion.Util;
 using Aion.Util.Buzz.Synchronizations;
-using Aion.Util.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Quartz;
 using Xunit;

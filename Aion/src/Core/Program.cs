@@ -1,15 +1,15 @@
 ﻿using System;
-using Aion.Core.Interface.Endpoints;
-using Aion.Core.Interface.Jobs;
-using Aion.Core.Objective.Downtimes;
-using Aion.Core.Objective.Workflows;
-using Aion.Meta;
-using Aion.Meta.Serilog;
-using Aion.Meta.Serilog.Enriching;
-using Aion.Util.Buzz;
-using Aion.Util.Buzz.TriggerListeners;
-using Aion.Util.Data;
-using Aion.Util.Data.Scheduler;
+using Aion.Core.Hello.Endpoints;
+using Aion.Core.Hello.Jobs;
+using Aion.Core.Magic.Downtimes;
+using Aion.Core.Magic.Workflows;
+using Aion.Data;
+using Aion.Data.Scheduler;
+using Aion.Util;
+using Aion.Util.Dotnet;
+using Aion.Util.Quartz.TriggerListeners;
+using Aion.Util.Serilog;
+using Aion.Util.Serilog.Enriching;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,7 +18,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Quartz;
 using Serilog;
-using ExecuteStep = Aion.Core.Objective.Workflows.ExecuteStep;
+using ExecuteStep = Aion.Core.Magic.Workflows.ExecuteStep;
 
 var builder = WebApplication.CreateBuilder(args);
 
