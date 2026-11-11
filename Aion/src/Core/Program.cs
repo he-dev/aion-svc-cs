@@ -18,6 +18,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Quartz;
 using Serilog;
+using Wiretap.Core;
 using ExecuteStep = Aion.Core.Magic.Workflows.ExecuteStep;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -142,6 +143,8 @@ app.MapDowntimes();
 
 using (var scope = app.Services.CreateScope())
 {
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    logger.Baseline.Snap<Program>().LogInformation("Scheduler starts.");
     await scope.ServiceProvider.GetRequiredService<ScheduleWorkflowPolling>().Invoke();
 }
 

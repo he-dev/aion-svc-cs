@@ -46,7 +46,7 @@ public record Workflow
         public required TimeSpan Timeout { get; init; }
     }
 
-    public static Workflow operator +(Workflow workflow, WorkflowMod? patch)
+    public static Workflow operator +(Workflow workflow, WorkflowOverride? patch)
     {
         if (patch is null) return workflow;
 

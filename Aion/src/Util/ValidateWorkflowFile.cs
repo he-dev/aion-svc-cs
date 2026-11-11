@@ -4,18 +4,30 @@ using System.IO;
 using System.Linq;
 using Aion.Data;
 using Aion.Data.Scheduler;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Quartz;
+using Wiretap.Core;
 
 namespace Aion.Util;
 
-public class ValidateWorkflowFile(IOptions<SchedulerOptions> schedulerOptions)
+public class ValidateWorkflowFile
+(
+    ILogger<ValidateWorkflowFile> logger,
+    IOptions<SchedulerOptions> schedulerOptions
+)
 {
-    public IEnumerable<string> That(WorkflowFile workflow)
+    public bool That(WorkflowFile workflow)
     {
+        using var about = logger.Baseline.BeginScopeAbout<ValidateWorkflowFile>();
+        about.Zero.LogDebug(null);
+
+        var isValid = true;
+
         if (string.IsNullOrWhiteSpace(workflow.Cron))
         {
-            yield return $"Cannot use [{nameof(WorkflowFile)}.{nameof(WorkflowFile.Cron)}] because it is null or empty.";
+            about.Tick.LogError("Cannot use workflow property '{workflow.property}' because it is null or empty.", nameof(WorkflowFile.Cron));
+            isValid = false;
         }
         else
         {
@@ -31,7 +43,8 @@ public class ValidateWorkflowFile(IOptions<SchedulerOptions> schedulerOptions)
 
             if (cronErrorMessage is not null)
             {
-                yield return $"Cannot use [{nameof(WorkflowFile)}.{nameof(WorkflowFile.Cron)}] because it is not a valid cron expression: {cronErrorMessage}";
+                about.Tick.LogError("Cannot use workflow property '{workflow.property}' because it is not a valid cron expression: {workflow.cron.error}", nameof(WorkflowFile.Cron), cronErrorMessage);
+                isValid = false;
             }
         }
 
@@ -41,7 +54,8 @@ public class ValidateWorkflowFile(IOptions<SchedulerOptions> schedulerOptions)
             {
                 if (string.IsNullOrWhiteSpace(value))
                 {
-                    yield return $"Cannot use [{nameof(WorkflowFile)}.{nameof(WorkflowFile.Variables)}][{key}] because its value is null or empty.";
+                    about.Tick.LogError("Cannot use variable '{workflow.variable.name}' because it is null or empty.", key);
+                    isValid = false;
                 }
             }
         }
@@ -50,76 +64,91 @@ public class ValidateWorkflowFile(IOptions<SchedulerOptions> schedulerOptions)
         {
             if (!workflow.Logger.Equals("@profile", StringComparison.OrdinalIgnoreCase))
             {
-                var loggersPath = System.IO.Path.Join(schedulerOptions.Value.Home, "loggers", $"{workflow.Logger}.json");
-                if (!System.IO.File.Exists(loggersPath))
+                var loggersPath = Path.Join(schedulerOptions.Value.Home, "loggers", $"{workflow.Logger}.json");
+                if (!File.Exists(loggersPath))
                 {
-                    yield return $"Cannot use [{nameof(WorkflowFile)}.{nameof(WorkflowFile.Logger)}]'s '{workflow.Logger}' because the file '{loggersPath}' it refers to, does not exist.";
+                    about.Tick.LogError("Cannot use logger {workflow.logger.path} because it does not exist.", loggersPath);
+                    isValid = false;
                 }
             }
         }
 
         if (workflow.Steps is null)
         {
-            yield return $"Cannot use [{nameof(WorkflowFile)}.{nameof(WorkflowFile.Steps)}] because it is null.";
+            about.Tick.LogError("Workflow issue: {workflow.property.name} property is null.", nameof(WorkflowFile.Steps));
+            isValid = false;
         }
         else
         {
             if (workflow.Steps.Length == 0)
             {
-                yield return $"Cannot use [{nameof(WorkflowFile)}.{nameof(WorkflowFile.Steps)}] because it is null or empty.";
+                about.Tick.LogError("Workflow issue: {workflow.property.name} property is empty.", nameof(WorkflowFile.Steps));
+                isValid = false;
             }
             else
             {
                 if (workflow.Steps.Any(step => step is null))
                 {
-                    yield return $"Cannot use [{nameof(WorkflowFile)}.{nameof(WorkflowFile.Steps)}] because one or more steps are null.";
+                    about.Tick.LogError("Workflow issue: one or more {workflow.property.name} is null or empty.", nameof(WorkflowFile.Steps));
+                    isValid = false;
                 }
                 else
                 {
                     foreach (var (step, index) in workflow.Steps.Select((x, i) => (x, i)))
                     {
                         // note: At this point steps are not null. C# just cannot figure that out.
-                        foreach (var issue in That(step!, index))
+                        if (!That(step!, index))
                         {
-                            yield return issue;
+                            isValid = false;
                         }
                     }
                 }
             }
         }
+
+        about.Last.LogDebug(null);
+
+        return isValid;
     }
 
-    private IEnumerable<string> That(WorkflowFile.Step step, int index)
+    private bool That(WorkflowFile.Step step, int index)
     {
+        using var about = logger.Baseline.BeginScopeAbout($"{nameof(ValidateWorkflowFile)}.Step");
+        about.Zero.LogDebug(null);
+
+        var isValid = true;
+
         if (step.Name is not null && string.IsNullOrWhiteSpace(step.Name))
         {
-            yield return $"Cannot use [{nameof(WorkflowFile.Step)}.{nameof(step.Name)}] at index {index} because it is empty.";
+            about.Tick.LogError("Step {workflow.step.index} issue: {workflow.step.property.name} property is empty.", index, nameof(WorkflowFile.Step.Name));
+            isValid = false;
         }
 
         if (string.IsNullOrWhiteSpace(step.FileName))
         {
-            yield return $"Cannot use [{nameof(WorkflowFile.Step)}.{nameof(step.FileName)}] at index {index} because it is empty.";
+            about.Tick.LogError("Step {workflow.step.index} issue: {workflow.step.property.name} property is empty.", index, nameof(WorkflowFile.Step.FileName));
+            isValid = false;
         }
 
-        if(step.Arguments is not null)
+        if (step.Arguments is not null && step.Arguments.Any(string.IsNullOrWhiteSpace))
         {
-            foreach (var argument in step.Arguments)
-            {
-                if (string.IsNullOrWhiteSpace(argument))
-                {
-                    yield return $"Cannot use [{nameof(WorkflowFile.Step)}.{nameof(step.Arguments)}] at index {index} because it contains an empty or null argument.";
-                }
-            }
+            about.Tick.LogError("Step {workflow.step.index} issue: One or more arguments are null or empty.", index);
+            isValid = false;
         }
 
         if (step.WorkingDirectory is not null && !Directory.Exists(step.WorkingDirectory))
         {
-            yield return $"Cannot use [{nameof(WorkflowFile.Step)}.{nameof(step.WorkingDirectory)}] at index {index} that refers to '{step.WorkingDirectory}' because it does not exist.";
+            // mhmm?
         }
 
         if (step.Timeout is not null && step.Timeout < TimeSpan.Zero)
         {
-            yield return $"Cannot use [{nameof(WorkflowFile.Step)}.{nameof(step.Timeout)}] at index {index} because it is less than zero.";
+            about.Tick.LogError("Step {workflow.step.index} issue: {workflow.step.property.name} is less than zero.", index, nameof(WorkflowFile.Step.Timeout));
+            isValid = false;
         }
+
+        about.Last.LogDebug(null);
+
+        return isValid;
     }
 }

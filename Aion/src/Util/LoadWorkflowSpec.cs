@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Aion.Data;
 using Microsoft.Extensions.Logging;
 using Wiretap.Core;
-using Wiretap.Util;
 
 namespace Aion.Util;
 
@@ -20,11 +19,15 @@ public class LoadWorkflowSpec
 {
     public async Task<WorkflowSpec?> FromFileOrNull(WorkflowPath workflowPath)
     {
-        using var scope = logger.BeginScopeWith(("@workflow.name", workflowPath));
+        using var about = logger.Baseline.BeginScopeAbout<LoadWorkflowSpec>
+        ([
+            ("@workflow.name", workflowPath)
+        ]);
+        about.Zero.Internal.LogDebug(null);
 
         if (!File.Exists(workflowPath))
         {
-            logger.With(Channel.Official).LogError("Workflow spec '{@workflow.name}' does not exist.");
+            about.LogError("Workflow spec '{@workflow.name}' does not exist.");
             return null;
         }
 
@@ -37,21 +40,17 @@ public class LoadWorkflowSpec
 
         if (data is null)
         {
-            logger.With(Channel.Official).LogError("Workflow '{@workflow.name}' is null or empty.");
+            about.Last.LogError("Workflow '{@workflow.name}' is null or empty.");
             return null;
         }
 
-        if (validateWorkflowFile.That(data).ToList() is { Count: > 0 } issues)
+        if (!validateWorkflowFile.That(data))
         {
-            foreach (var issue in issues)
-            {
-                logger.With(Channel.Official).LogError("{workflow.issue}", issue);
-            }
-
+            about.Last.LogDebug(null);
             return null;
         }
 
-        logger.With(Channel.Official).LogDebug("Workflow '{@workflow.name}' passes validations.");
+        about.LogInformation("Workflow '{@workflow.name}' passes validations.");
 
         try
         {
@@ -81,8 +80,12 @@ public class LoadWorkflowSpec
         }
         catch (Exception e)
         {
-            scope.With(Channel.Internal).LogError(e, "Workflow spec '{@workflow.name}' does not deserialize.");
+            about.LogError(e, "Workflow spec '{@workflow.name}' does not deserialize.");
             return null;
+        }
+        finally
+        {
+            about.Last.WhenFirstOnly.LogDebug("Loads workflow spec '{@workflow.name}'.");
         }
     }
 

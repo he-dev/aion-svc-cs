@@ -7,7 +7,6 @@ using Aion.Data;
 using Aion.Util.Serilog;
 using Microsoft.Extensions.Logging;
 using Wiretap.Core;
-using Wiretap.Util;
 
 namespace Aion.Core.Magic.Workflows;
 
@@ -21,13 +20,13 @@ public class ExecuteWorkflow
     public async Task Invoke(Workflow workflow, CancellationToken cancellationToken = default)
     {
         using var loggerBug = forkLogging.Into(new LoggerFork(workflow.Logger));
-        using var about = logger.BeginScopeAbout<ExecuteWorkflow>
-        (Channel.Internal, [
+        using var about = logger.Baseline.BeginScopeAbout<ExecuteWorkflow>
+        ([
             ("@workflow.name", workflow.Spec.Path),
             ("workflow.mode", workflow.TriggerMode)
         ]);
 
-        about.Zero.With(Channel.Internal).LogDebug(null);
+        about.Zero.LogDebug(null);
 
         var stepResults = new List<bool>();
         try
@@ -40,7 +39,7 @@ public class ExecuteWorkflow
                 }
                 else
                 {
-                    about.Tick.With(Channel.Internal).LogInformation("Skipping step {workflow.step.index} because it is disabled.", step.Index);
+                    about.Tick.LogInformation("Skipping step {workflow.step.index} because it is disabled.", step.Index);
                 }
             }
 
@@ -54,17 +53,16 @@ public class ExecuteWorkflow
             );
             about
                 .Last
-                .With(Channel.Internal)
                 .LogInformation("Workflow '{@workflow.name}' completes in {activity.duration_ms:N0} ms. Steps: {workflow.step.count.success} okay, {workflow.step.count_failure} failed.");
         }
         catch (OperationCanceledException)
         {
-            about.Last.With(Channel.Internal).LogError("Workflow '{@workflow.name}' canceled after {activity.duration_ms:N0} ms.");
+            about.Last.LogError("Workflow '{@workflow.name}' canceled after {activity.duration_ms:N0} ms.");
         }
 
         catch (Exception ex)
         {
-            about.Last.With(Channel.Internal).LogError(ex, "Workflow '{@workflow.name}' fails after {activity.duration_ms:N0} ms.");
+            about.Last.LogError(ex, "Workflow '{@workflow.name}' fails after {activity.duration_ms:N0} ms.");
         }
     }
 

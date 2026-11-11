@@ -8,7 +8,6 @@ using Aion.Data.Scheduler;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Wiretap.Core;
-using Wiretap.Util;
 
 namespace Aion.Util;
 
@@ -21,16 +20,16 @@ public class ComposeWorkflow
     LoadLoggingPreset loadLoggingPreset
 )
 {
-    public async Task<Workflow?> From(WorkflowPath workflowPath, WorkflowMod? mod = null)
+    public async Task<Workflow?> From(WorkflowPath workflowPath, WorkflowOverride? mod = null)
     {
         using var scope = logger.BeginScopeWith(("@workflow.name", workflowPath));
-        logger.With(Channel.Internal).LogDebug("Composing workflow '{@workflow.name}'.", workflowPath);
+        logger.Internal.LogDebug("Composing workflow '{@workflow.name}'.", workflowPath);
 
         var spec = await loadWorkflowSpec.FromFileOrNull(workflowPath);
 
         if (spec is null)
         {
-            logger.With(Channel.Internal).LogDebug("Cannot load workflow '{@workflow.name}' because there is no spec.");
+            logger.Internal.LogDebug("Cannot load workflow '{@workflow.name}' because there is no spec.");
             return null;
         }
 
@@ -65,7 +64,7 @@ public class ComposeWorkflow
 
         if (steps[true].Any())
         {
-            logger.With(Channel.Internal).LogDebug("Cannot load workflow '{@workflow.name}' because it contains {workflow.step.count.invalid} invalid steps.", workflowPath, steps[true].Count());
+            logger.Internal.LogDebug("Cannot load workflow '{@workflow.name}' because it contains {workflow.step.count.invalid} invalid steps.", workflowPath, steps[true].Count());
             return null;
         }
 
@@ -111,7 +110,7 @@ public class ComposeWorkflow
         }
         catch (Exception ex)
         {
-            logger.With(Channel.Internal).LogError(ex, "Cannot create step {workflow.step.index} because: {workflow.step.exception:l}.", spec.Index, ex.Message);
+            logger.Internal.LogError(ex, "Cannot create step {workflow.step.index} because: {workflow.step.exception:l}.", spec.Index, ex.Message);
             return null;
         }
     }

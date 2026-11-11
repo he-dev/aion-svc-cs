@@ -10,7 +10,6 @@ using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Wiretap.Core;
-using Wiretap.Util;
 
 namespace Aion.Util;
 
@@ -47,17 +46,17 @@ public class FindWorkflows
         var ambiguous = matches.GroupBy(w => w.Name).ToLookup(g => g.Count() > 1);
         if(ambiguous[true].Any())
         {
-            logger.With(Channel.Official).LogError("There are {workflow.count} ambiguous workflows", ambiguous[true].Count());
+            logger.Baseline.LogError("There are {workflow.count} ambiguous workflows", ambiguous[true].Count());
             foreach (var workflow in ambiguous[true])
             {
                 logger
-                    .With(Channel.Internal)
+                    .Internal
                     .LogError("Workflow '{workflow.name}' is ambiguous. Only one extension [json, yaml, yml] per name is allowed.", workflow);
             }
             return ImmutableArray<WorkflowPath>.Empty;
         }
 
-        logger.With(Channel.Official).LogInformation("There are {workflow.count} workflows that match '{workflow.pattern}'.", matches.Count, pattern);
+        logger.Baseline.LogInformation("There are {workflow.count} workflows that match '{workflow.pattern}'.", matches.Count, pattern);
 
         return [.. ambiguous[false].SelectMany(pathGroup => pathGroup)];
     }

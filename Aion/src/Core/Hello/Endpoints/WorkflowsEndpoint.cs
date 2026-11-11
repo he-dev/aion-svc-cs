@@ -7,6 +7,7 @@ using Aion.Util.Serilog;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Aion.Core.Hello.Endpoints;
 
@@ -35,7 +36,7 @@ public static class WorkflowsEndpoint
     {
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
-        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowMod
+        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowOverride
         {
             StartAt = DateTimeOffset.UtcNow,
             Steps = body.Steps
@@ -47,7 +48,7 @@ public static class WorkflowsEndpoint
     {
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
-        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowMod
+        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowOverride
         {
             StartAt = DateTimeOffset.UtcNow + body.Wait,
             Steps = body.Steps
@@ -60,7 +61,7 @@ public static class WorkflowsEndpoint
     {
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
-        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowMod
+        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowOverride
         {
             StartAt = body.WhenUtc,
             Steps = body.Steps
@@ -79,10 +80,11 @@ public static class WorkflowsEndpoint
         var results =
             inMemoryFork
                 //.WhereProperty("activity.channel", Channel.Official.Value)
+                .AtLeast(LogLevel.Information)
                 .GroupBy
                 (
                     e => e.GetScalarOrDefault<string>("workflow.name") ?? "(other)",
-                    e => e, (workflow, events) => new { workflow, events = events.Format("[{Level:u3}:{activity.event}] {Message:lj}").ToList() }
+                    e => e, (workflow, events) => new { workflow, events = events.Format("{Level:u3} [{activity.event}] {Message:lj}").ToList() }
                 )
                 .ToList();
 

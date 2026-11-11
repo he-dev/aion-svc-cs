@@ -8,7 +8,6 @@ using Aion.Util.Serilog;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Wiretap.Core;
-using Wiretap.Util;
 
 namespace Aion.Util;
 
@@ -24,7 +23,8 @@ public class LoadLoggingPreset
         if (loggingPresetNameOrPath is null)
         {
             logger
-                .Snap(nameof(LoadLoggingPreset), Channel.Internal)
+                .Internal
+                .Snap<LoadLoggingPreset>()
                 .LogDebug("Logging preset name-or-path is null. Using the default logger.");
             return defaultLogger;
         }
@@ -33,7 +33,7 @@ public class LoadLoggingPreset
 
         if (!Path.IsPathRooted(loggingPresetNameOrPath))
         {
-            logger.With(Channel.Internal).LogDebug("Logging preset references: '{logging.preset.path}'.", loggingPresetNameOrPath);
+            logger.Internal.LogDebug("Logging preset references: '{logging.preset.path}'.", loggingPresetNameOrPath);
             loggingPresetPath = Path.Combine(schedulerOptions.Value.Home, "loggers", loggingPresetNameOrPath);
         }
 
@@ -50,7 +50,7 @@ public class LoadLoggingPreset
 
             if (logging is null)
             {
-                logger.With(Channel.Internal).LogError("Logging preset '{logging.preset.path}' does not contain valid logger JSON. Using default logger.", loggingPresetPath);
+                logger.Internal.LogError("Logging preset '{logging.preset.path}' does not contain valid logger JSON. Using default logger.", loggingPresetPath);
             }
             else
             {
@@ -60,7 +60,7 @@ public class LoadLoggingPreset
         // meta: Single will throw this, so let's translate it to something meaningful.
         catch (Exception ex)
         {
-            logger.With(Channel.Internal).LogError(ex, "File '{logging.preset.path}' fails to deserialize as logging-preset. Falling back to default logger.", loggingPresetPath);
+            logger.Internal.LogError(ex, "File '{logging.preset.path}' fails to deserialize as logging-preset. Falling back to default logger.", loggingPresetPath);
         }
 
         return defaultLogger;
