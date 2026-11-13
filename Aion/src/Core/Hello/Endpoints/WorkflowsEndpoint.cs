@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Aion.Core.Magic.Workflows;
 using Aion.Data;
+using Aion.Util;
 using Aion.Util.Serilog;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -24,9 +25,9 @@ public static class WorkflowsEndpoint
         workflows.MapPost("workflows:sync", Synchronize);
     }
 
-    private static async Task<IResult> GetWorkflows(ComposeWorkflowOverview composeWorkflowOverview, [FromBody] WorkflowQuery? body)
+    private static async Task<IResult> GetWorkflows(CreateWorkflowSummary createWorkflowSummary, [FromBody] WorkflowQuery? body)
     {
-        var workflows = await composeWorkflowOverview.Where(body?.Pattern);
+        var workflows = await createWorkflowSummary.Where(body?.Pattern);
         return Results.Ok(workflows);
     }
 

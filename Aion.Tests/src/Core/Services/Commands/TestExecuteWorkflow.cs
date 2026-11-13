@@ -28,7 +28,7 @@ public class TestExecuteWorkflow(TestWebApplication testWebApplication) : IClass
     {
         using var scope = testWebApplication.Services.CreateScope();
 
-        var createWorkflow = scope.ServiceProvider.GetRequiredService<ComposeWorkflow>();
+        var createWorkflow = scope.ServiceProvider.GetRequiredService<LoadWorkflow>();
         var executeWorkflow = scope.ServiceProvider.GetRequiredService<ExecuteWorkflow>();
         var getProfile = scope.ServiceProvider.GetRequiredService<GetProfiles>();
         var findWorkflows = scope.ServiceProvider.GetRequiredService<FindWorkflows>();

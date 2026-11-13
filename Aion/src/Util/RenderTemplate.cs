@@ -57,13 +57,13 @@ public static class RenderTemplate
             }
             catch (Exception ex)
             {
-                throw new Exception($"Template '{template}' could not be rendered.", ex);
+                throw new Exception($"Cannot render '{template}'.", ex);
             }
 
             // core: Apparently it's still not fully rendered.
             if (++passCount > MaxPassCount)
             {
-                throw new Exception($"Template '{template}' did not stabilize after {MaxPassCount} passes at '{current}'.");
+                throw new Exception($"Template '{template}' does not stabilize after {MaxPassCount} passes at '{current}'.");
             }
         }
 

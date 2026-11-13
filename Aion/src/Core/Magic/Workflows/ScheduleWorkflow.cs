@@ -14,7 +14,7 @@ public class ScheduleWorkflow
     ILogger<ScheduleWorkflow> logger,
     ISchedulerFactory schedulerFactory,
     FindWorkflows findWorkflows,
-    ComposeWorkflow composeWorkflow
+    LoadWorkflow loadWorkflow
 )
 {
     // https://www.quartz-scheduler.net/documentation/quartz-3.x/quick-start.html
@@ -31,7 +31,7 @@ public class ScheduleWorkflow
             ]);
             about.Zero.Internal.LogDebug(null);
 
-            if (await composeWorkflow.From(workflowPath) is not { } workflow)
+            if (await loadWorkflow.From(workflowPath) is not { } workflow)
             {
                 about.Last.LogError("Skips workflow '{@workflow.name}' because it did not load.", workflowPath);
                 continue;
@@ -103,7 +103,7 @@ public class ScheduleWorkflow
             ]);
             about.Zero.Internal.LogDebug(null);
 
-            if (await composeWorkflow.From(workflowPath, workflowOverride) is not { } workflow)
+            if (await loadWorkflow.From(workflowPath, workflowOverride) is not { } workflow)
             {
                 logger.Baseline.LogError("Skips workflow '{@workflow.name}' because it did not load.");
                 continue;

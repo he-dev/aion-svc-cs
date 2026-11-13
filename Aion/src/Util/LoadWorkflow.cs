@@ -11,9 +11,9 @@ using Wiretap.Core;
 
 namespace Aion.Util;
 
-public class ComposeWorkflow
+public class LoadWorkflow
 (
-    ILogger<ComposeWorkflow> logger,
+    ILogger<LoadWorkflow> logger,
     IOptions<SchedulerOptions> schedulerOptions,
     LoadWorkflowSpec loadWorkflowSpec,
     LoadWorkflowProfile loadWorkflowProfile,
@@ -22,14 +22,14 @@ public class ComposeWorkflow
 {
     public async Task<Workflow?> From(WorkflowPath workflowPath, WorkflowOverride? mod = null)
     {
-        using var scope = logger.BeginScopeWith(("@workflow.name", workflowPath));
-        logger.Internal.LogDebug("Composing workflow '{@workflow.name}'.", workflowPath);
+        using var about = logger.Internal.BeginScopeAbout<LoadWorkflow>([("@workflow.name", workflowPath)]);;
+        about.Zero.LogDebug("Loading workflow '{@workflow.name}'.", workflowPath);
 
         var spec = await loadWorkflowSpec.FromFileOrNull(workflowPath);
 
         if (spec is null)
         {
-            logger.Internal.LogDebug("Cannot load workflow '{@workflow.name}' because there is no spec.");
+            about.Last.LogError("Cannot load workflow '{@workflow.name}' because there is no spec.");
             return null;
         }
 
@@ -60,17 +60,17 @@ public class ComposeWorkflow
             }
         ]);
 
-        var steps = spec.Steps.Select(step => CreateStep(step, variableGroups)).ToLookup(step => step is null);
+        var nullSteps = spec.Steps.Select(step => CreateStep(step, variableGroups)).ToLookup(step => step is null);;
 
-        if (steps[true].Any())
+        if (nullSteps[true].Any())
         {
-            logger.Internal.LogDebug("Cannot load workflow '{@workflow.name}' because it contains {workflow.step.count.invalid} invalid steps.", workflowPath, steps[true].Count());
+            about.LogError("Cannot use workflow '{@workflow.name}' because it contains {workflow.step.count.invalid} invalid steps.", workflowPath, nullSteps[true].Count());
             return null;
         }
 
         workflow = workflow with
         {
-            Steps = [.. steps[false].Select(s => s!)]
+            Steps = [.. nullSteps[false].Select(s => s!)]
         };
 
         return workflow;

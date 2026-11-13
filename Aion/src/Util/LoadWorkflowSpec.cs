@@ -107,6 +107,7 @@ public class LoadWorkflowSpec
         }
         catch (Exception e)
         {
+            logger.Snap<LoadWorkflowSpec>().Internal.LogError(e, "Failed to load workflow spec '{@workflow.name}'.",  workflowPath);
             return null;
         }
     }
@@ -126,6 +127,7 @@ public class LoadWorkflowSpec
         }
         catch (Exception e)
         {
+            logger.Snap<LoadWorkflowSpec>().Internal.LogError(e, "Failed to load workflow spec '{@workflow.name}'.",  workflowPath);
             return null;
         }
     }

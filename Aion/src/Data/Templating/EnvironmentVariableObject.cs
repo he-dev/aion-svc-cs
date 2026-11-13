@@ -10,7 +10,7 @@ namespace Aion.Data.Templating;
 public class EnvironmentVariableGroup : ScriptObject, IVariableGroup
 {
     // meta: Scriban calls this for BOTH Environment.Name and Environment["Name"]
-    public override bool TryGetValue(TemplateContext context, SourceSpan span, string member, out object value)
+    public override bool TryGetValue(TemplateContext? context, SourceSpan span, string member, out object value)
     {
         // core: Fetch from OS
         var temp = Environment.GetEnvironmentVariable(member);

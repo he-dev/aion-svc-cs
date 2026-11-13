@@ -6,4 +6,7 @@ GET {{host}}{{profiles.two}}/workflows
 ### Lists workflows in one.
 GET {{host}}{{profiles.two}}/workflows?q=fast-trio
 
-###
+### Get workflows summaries
+GET {{host}}/workflows
+
+

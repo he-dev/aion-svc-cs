@@ -13,7 +13,7 @@ namespace Aion.Core.Hello.Jobs;
 public class WorkflowRegularJob
 (
     ILogger<WorkflowRegularJob> logger,
-    ComposeWorkflow composeWorkflow,
+    LoadWorkflow loadWorkflow,
     ExecuteWorkflow executeWorkflow,
     ScheduleWorkflow scheduleWorkflow
 ) : IJob
@@ -33,7 +33,7 @@ public class WorkflowRegularJob
 
         try
         {
-            if (await composeWorkflow.From(workflowPath) is { } workflow)
+            if (await loadWorkflow.From(workflowPath) is { } workflow)
             {
                 await executeWorkflow.Invoke(workflow, cancellationToken);
             }

@@ -25,6 +25,6 @@ public class EnsureProfileExists : IEndpointFilter
             return Results.NotFound($"Profile '{profileName}' not found.");
         }
 
-        return await next(context);
+        //return await next(context);
     }
 }

@@ -13,7 +13,7 @@ namespace Aion.Core.Hello.Jobs;
 public class WorkflowCustomJob
 (
     ILogger<WorkflowRegularJob> logger,
-    ComposeWorkflow composeWorkflow,
+    LoadWorkflow loadWorkflow,
     ExecuteWorkflow executeWorkflow
 ) : IJob
 {
@@ -34,7 +34,7 @@ public class WorkflowCustomJob
 
         try
         {
-            if (await composeWorkflow.From(workflowPath, workflowMod) is { } workflow)
+            if (await loadWorkflow.From(workflowPath, workflowMod) is { } workflow)
             {
                 await executeWorkflow.Invoke(workflow, cancellationToken);
             }

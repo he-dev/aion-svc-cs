@@ -74,14 +74,14 @@ builder.Services.AddScoped<ValidateWorkflowFile>();
 
 // meta: These two services must be singletons because otherwise cannot inject them into ITriggerListener instances.
 builder.Services.AddScoped<FindWorkflows>();
-builder.Services.AddScoped<ComposeWorkflow>();
+builder.Services.AddScoped<LoadWorkflow>();
 builder.Services.AddScoped<LoadWorkflowProfile>();
 builder.Services.AddScoped<LoadLoggingPreset>();
 builder.Services.AddScoped<LoadLoggingPreset>();
 builder.Services.AddScoped<LoadWorkflowProfile>();
 builder.Services.AddScoped<LoadWorkflowSpec>();
 
-builder.Services.AddScoped<ComposeWorkflow>();
+builder.Services.AddScoped<LoadWorkflow>();
 builder.Services.AddScoped<ExecuteWorkflow>();
 builder.Services.AddScoped<ExecuteStep>();
 builder.Services.AddScoped<StartProcess>();
@@ -111,7 +111,7 @@ builder.Services.AddQuartzHostedService(options =>
 });
 
 
-builder.Services.AddScoped<ComposeWorkflowOverview>();
+builder.Services.AddScoped<CreateWorkflowSummary>();
 builder.Services.AddScoped<ScheduleWorkflow>();
 builder.Services.AddScoped<ScheduleWorkflowPolling>();
 builder.Services.AddScoped<ExecuteWorkflow>();
