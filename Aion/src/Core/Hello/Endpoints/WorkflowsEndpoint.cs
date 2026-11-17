@@ -27,7 +27,7 @@ public static class WorkflowsEndpoint
 
     private static async Task<IResult> GetWorkflows(CreateWorkflowSummary createWorkflowSummary, [FromBody] WorkflowQuery? body)
     {
-        var workflows = await createWorkflowSummary.Where(body?.Pattern);
+        var workflows = await createWorkflowSummary.Where(WorkflowPattern.Parse(body?.Pattern));
         return Results.Ok(workflows);
     }
 
@@ -37,7 +37,7 @@ public static class WorkflowsEndpoint
     {
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
-        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowOverride
+        await parameters.ScheduleWorkflow.AsOnce(WorkflowPattern.Parse(body.Pattern), new WorkflowOverride
         {
             StartAt = DateTimeOffset.UtcNow,
             Steps = body.Steps
@@ -49,7 +49,7 @@ public static class WorkflowsEndpoint
     {
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
-        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowOverride
+        await parameters.ScheduleWorkflow.AsOnce(WorkflowPattern.Parse(body.Pattern), new WorkflowOverride
         {
             StartAt = DateTimeOffset.UtcNow + body.Wait,
             Steps = body.Steps
@@ -62,7 +62,7 @@ public static class WorkflowsEndpoint
     {
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
-        await parameters.ScheduleWorkflow.AsOnce(body.Pattern, new WorkflowOverride
+        await parameters.ScheduleWorkflow.AsOnce(WorkflowPattern.Parse(body.Pattern), new WorkflowOverride
         {
             StartAt = body.WhenUtc,
             Steps = body.Steps
@@ -76,7 +76,7 @@ public static class WorkflowsEndpoint
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
 
-        await parameters.ScheduleWorkflow.AsCron();
+        await parameters.ScheduleWorkflow.AsCron(WorkflowPattern.Any);
 
         var results =
             inMemoryFork

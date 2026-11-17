@@ -15,7 +15,7 @@ public class EndDowntime
     FindWorkflows findWorkflows
 )
 {
-    public async Task<IImmutableList<WorkflowDowntime>> Now(string? workflowPattern)
+    public async Task<IImmutableList<WorkflowDowntime>> Now(WorkflowPattern workflowPattern)
     {
         using var scope = logger.BeginScopeWith(("workflow.pattern", workflowPattern));
 

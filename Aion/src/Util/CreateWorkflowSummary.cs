@@ -2,6 +2,7 @@
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
+using Aion.Data;
 using Aion.Util.Quartz;
 using Aion.Util.Serilog;
 using Microsoft.Extensions.Logging;
@@ -18,7 +19,7 @@ public class CreateWorkflowSummary
     LoadWorkflow loadWorkflow
 )
 {
-    public async Task<object> Where(string? workflowPattern)
+    public async Task<object> Where(WorkflowPattern workflowPattern)
     {
         // note: Uses Workflow as the type and not an object so that we can calculate next later and sort them.
         var summaries = ImmutableList<object>.Empty;
@@ -35,7 +36,7 @@ public class CreateWorkflowSummary
                 var next = workflow.Trigger.FiresAt(utcNow).Take(3).Select(x => x.ToLocalTime());
                 summaries = summaries.Add(new
                 {
-                    path = workflow.Spec.Path.Name,
+                    path = workflow.Spec.Path.Relative,
                     isOn = workflow.Enabled,
                     cron = ((ICronTrigger)workflow.Trigger).CronExpressionString,
                     next = next,
@@ -53,7 +54,7 @@ public class CreateWorkflowSummary
 
                 summaries = summaries.Add(new
                 {
-                    path = workflowPath.Name,
+                    path = workflowPath.Relative,
                     logs = logs,
                 });
             }

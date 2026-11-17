@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Serilog.Events;
 
 namespace Aion.Util.Serilog;
@@ -15,5 +16,15 @@ public static class LogEventExtensions
 
         value = default;
         return false;
+    }
+
+    public static T? ScalarOrDefault<T>(this IReadOnlyDictionary<string, LogEventPropertyValue> properties, string name)
+    {
+        if (properties.TryGetValue(name, out var property) && property is ScalarValue { Value: T scalar })
+        {
+            return scalar;
+        }
+
+        return default;
     }
 }

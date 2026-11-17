@@ -27,7 +27,7 @@ public class WorkflowCannotExecuteDuringDowntime
         try
         {
             // core: Get the triggered workflow's path and check its downtime.
-            var workflowMatch = findWorkflows.Where(workflowPath).Single();
+            var workflowMatch = findWorkflows.Where(WorkflowPattern.Parse(workflowPath)).Single();
             if (await WorkflowDowntime.FromFile(workflowPath) is { } workflowDowntime)
             {
                 if (workflowDowntime.Status == WorkflowDowntimeStatus.Expired)

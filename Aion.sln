@@ -29,5 +29,6 @@ Global
 		{CA106A05-E2E2-4833-AC0A-DC9F5D185690}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{CA106A05-E2E2-4833-AC0A-DC9F5D185690}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CA106A05-E2E2-4833-AC0A-DC9F5D185690}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA106A05-E2E2-4833-AC0A-DC9F5D185690}.Debug|Any CPU.Build.0 = Debug|Any CPU
 	EndGlobalSection
 EndGlobal

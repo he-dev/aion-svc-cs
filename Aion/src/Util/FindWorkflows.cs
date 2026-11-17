@@ -19,60 +19,43 @@ public class FindWorkflows
     IOptions<SchedulerOptions> schedulerOptions
 )
 {
-    public IImmutableList<WorkflowPath> Where(string? pattern = null)
+    public IImmutableList<WorkflowPath> Where(WorkflowPattern pattern)
     {
-        pattern = NormalizePattern(pattern);
-
         // core: Use the home directory as the base path and not the "home/workflows" so that "workflows" is part of the group name. Otherwise, it would be empty.
         var workflowsDirectory = Path.Join(schedulerOptions.Value.Home, "workflows");
 
         logger.LogInformation("Searching for workflows in '{scheduler.home}' matching '{workflow.pattern}'.", workflowsDirectory, pattern);
 
-        var result =
-            new Matcher(StringComparison.OrdinalIgnoreCase)
-                .AddInclude(pattern)
-                .AddExclude("**/.profile.json")
-                .AddExclude("loggers/**")
-                .Execute(new DirectoryInfoWrapper(new DirectoryInfo(workflowsDirectory)));
+        var matcher = new Matcher(StringComparison.OrdinalIgnoreCase);
+        matcher.AddIncludePatterns([.. pattern]);
+        matcher.AddExcludePatterns(["**/.profile.json", "loggers/**"]);
+
+        var result = matcher.Execute(new DirectoryInfoWrapper(new DirectoryInfo(workflowsDirectory)));
 
         var matches =
             result.Files
                 .Select(x => x.Path)
                 .Select(path => new WorkflowPath(workflowsDirectory.ToSlash(), path.ToSlash()))
                 .OrderBy(x => x.Directory)
-                .ThenBy(x => x.Name)
+                .ThenBy(x => x.Relative)
                 .ToImmutableList();
 
         var ambiguous = matches.GroupBy(w => w.Name).ToLookup(g => g.Count() > 1);
-        if(ambiguous[true].Any())
+        if (ambiguous[true].Any())
         {
-            logger.Baseline.LogError("There are {workflow.count} ambiguous workflows", ambiguous[true].Count());
             foreach (var workflow in ambiguous[true])
             {
                 logger
-                    .Internal
-                    .LogError("Workflow '{workflow.name}' is ambiguous. Only one extension [json, yaml, yml] per name is allowed.", workflow);
+                    .Baseline
+                    .With(("workflow.count", workflow.Count()))
+                    .LogError("Workflow '{workflow.name}' is ambiguous. Only one extension [json, yaml, yml] per name is allowed.", workflow.Key);
             }
+
             return ImmutableArray<WorkflowPath>.Empty;
         }
 
-        logger.Baseline.LogInformation("There are {workflow.count} workflows that match '{workflow.pattern}'.", matches.Count, pattern);
+        logger.Baseline.LogInformation("There are {workflow.count} workflows that match '{workflow.pattern}'.", matches.Count, pattern.Value);
 
         return [.. ambiguous[false].SelectMany(pathGroup => pathGroup)];
-    }
-
-    private static string NormalizePattern(string? pattern)
-    {
-        if (string.IsNullOrWhiteSpace(pattern))
-        {
-            return "**/*.json";
-        }
-
-        if (!pattern.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-        {
-            return $"{pattern}.json";
-        }
-
-        return pattern;
     }
 }

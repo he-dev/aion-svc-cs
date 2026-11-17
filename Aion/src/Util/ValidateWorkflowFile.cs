@@ -136,6 +136,12 @@ public class ValidateWorkflowFile
             isValid = false;
         }
 
+        if(step.Environment is not null && step.Environment.Values.Any(string.IsNullOrWhiteSpace))
+        {
+            about.Tick.LogError("Step {workflow.step.index} issue: One or more environment variables are null or empty.", index);
+            isValid = false;
+        }
+
         if (step.WorkingDirectory is not null && !Directory.Exists(step.WorkingDirectory))
         {
             // mhmm?

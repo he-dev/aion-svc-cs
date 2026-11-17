@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Aion.Core.Magic.Downtimes;
 using Aion.Data;
+using Aion.Util;
 using Aion.Util.Mvc;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -47,7 +48,7 @@ public static class DowntimesEndpoint
         try
         {
             var downtime = WorkflowDowntime.At(body.Pattern, body.StartsOnUtc, body.EndsOnUtc);
-            var results = await startDowntime.Now(body.Pattern, downtime);
+            var results = await startDowntime.Now(WorkflowPattern.Parse(body.Pattern), downtime);
 
             return Results.Accepted($"/api/downtimes", new
             {
@@ -72,7 +73,7 @@ public static class DowntimesEndpoint
 
     private static async Task<IResult> EndNow(EndDowntime endDowntime, [FromBody] DowntimeEndNowBody? body)
     {
-        var downtimes = await endDowntime.Now(body?.Pattern);
+        var downtimes = await endDowntime.Now(WorkflowPattern.Parse(body?.Pattern));
         return Results.Ok(new
         {
             pattern = body?.Pattern,

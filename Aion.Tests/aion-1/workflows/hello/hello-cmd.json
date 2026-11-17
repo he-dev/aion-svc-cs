@@ -6,7 +6,7 @@
     {
       "FileName": "cmd.exe",
       "Arguments": [
-        "/c echo Hallo cmd!"
+        "/c echo Hello CMD!"
       ]
     },
     {
@@ -15,7 +15,7 @@
         "/c \"{{ Scheduler.Home }}/workflows/hallo/hallo-cmd.bat\""
       ],
       "Environment": {
-        "CMD_MSG": "Hallo CMD!"
+        "CMD_MSG": "Hello CMD!"
       }
     }
   ]

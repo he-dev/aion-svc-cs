@@ -1,14 +1,17 @@
 ﻿using System.IO;
+using Aion.Util.Dotnet;
 
 namespace Aion.Data;
 
-public record WorkflowPath(string Home, string Name)
+public record WorkflowPath(string Root, string Relative)
 {
-    public string Directory => Path.GetDirectoryName(Name)!;
+    public string Directory => Path.GetDirectoryName(Relative)!;
 
-    public string Extension => Path.GetExtension(Name);
+    public string Name => Path.Join(Path.GetDirectoryName(Relative), Path.GetFileNameWithoutExtension(Relative)).ToSlash();
 
-    public override string ToString() => Path.Join(Home, Name);
+    public string Extension => Path.GetExtension(Relative);
+
+    public override string ToString() => Path.Join(Root, Relative).ToSlash();
 
     public static implicit operator string(WorkflowPath workflowPath) => workflowPath.ToString();
 }

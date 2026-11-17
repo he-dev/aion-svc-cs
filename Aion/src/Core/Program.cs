@@ -68,11 +68,9 @@ builder.Services.AddSingleton(x => x.GetRequiredService<IHostEnvironment>().Cont
 
 builder.Services.AddScoped<WorkflowRegularJob>();
 builder.Services.AddScoped<WorkflowPollingJob>();
+
 builder.Services.AddScoped<ValidateWorkflowProfile>();
 builder.Services.AddScoped<ValidateWorkflowFile>();
-
-
-// meta: These two services must be singletons because otherwise cannot inject them into ITriggerListener instances.
 builder.Services.AddScoped<FindWorkflows>();
 builder.Services.AddScoped<LoadWorkflow>();
 builder.Services.AddScoped<LoadWorkflowProfile>();
@@ -80,7 +78,6 @@ builder.Services.AddScoped<LoadLoggingPreset>();
 builder.Services.AddScoped<LoadLoggingPreset>();
 builder.Services.AddScoped<LoadWorkflowProfile>();
 builder.Services.AddScoped<LoadWorkflowSpec>();
-
 builder.Services.AddScoped<LoadWorkflow>();
 builder.Services.AddScoped<ExecuteWorkflow>();
 builder.Services.AddScoped<ExecuteStep>();

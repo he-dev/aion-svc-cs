@@ -1,0 +1,8 @@
+cron: "0/5 * * * * ?"
+logger: "@profile"
+steps:
+  - fileName: "pwsh"
+    arguments:
+      - "-NoProfile"
+      - "-ExecutionPolicy Bypass"
+      - "-File \"{{ Profile.Path }}\\workflows\\hallo-pwsh.ps1\""

@@ -1,10 +1,8 @@
 {
-  "Enabled": true,
   "Cron": "0/5 * * * * ?",
   "Logger": "@profile",
   "Steps": [
     {
-      "Enabled": true,
       "FileName": "pwsh",
       "Arguments": [
         "-NoProfile",

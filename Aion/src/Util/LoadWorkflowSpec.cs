@@ -31,7 +31,7 @@ public class LoadWorkflowSpec
             return null;
         }
 
-        var data = workflowPath.Extension.ToLower() switch
+        var data = workflowPath.Extension.ToLowerInvariant() switch
         {
             ".json" => await FromJsonOrNull(workflowPath),
             ".yaml" or ".yml" => await FromYamlOrNull(workflowPath),
@@ -50,7 +50,7 @@ public class LoadWorkflowSpec
             return null;
         }
 
-        about.LogInformation("Workflow '{@workflow.name}' passes validations.");
+        about.Tick.LogDebug("Workflow '{@workflow.name}' passes validations.");
 
         try
         {
@@ -80,7 +80,7 @@ public class LoadWorkflowSpec
         }
         catch (Exception e)
         {
-            about.LogError(e, "Workflow spec '{@workflow.name}' does not deserialize.");
+            about.Last.LogError(e, "Workflow spec '{@workflow.name}' does not deserialize.");
             return null;
         }
         finally
@@ -107,7 +107,7 @@ public class LoadWorkflowSpec
         }
         catch (Exception e)
         {
-            logger.Snap<LoadWorkflowSpec>().Internal.LogError(e, "Failed to load workflow spec '{@workflow.name}'.",  workflowPath);
+            logger.Snap<LoadWorkflowSpec>().Internal.LogError(e, "Workflow '{@workflow.name}' fails to load.",  workflowPath);
             return null;
         }
     }
@@ -127,7 +127,7 @@ public class LoadWorkflowSpec
         }
         catch (Exception e)
         {
-            logger.Snap<LoadWorkflowSpec>().Internal.LogError(e, "Failed to load workflow spec '{@workflow.name}'.",  workflowPath);
+            logger.Snap<LoadWorkflowSpec>().Internal.LogError(e, "Workflow '{@workflow.name}' fails to load.",  workflowPath);
             return null;
         }
     }

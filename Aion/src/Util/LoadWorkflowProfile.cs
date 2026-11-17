@@ -23,30 +23,30 @@ public class LoadWorkflowProfile
         var file = new FileInfo(workflowPath);
         for (var dir = file.Directory; dir != null; dir = dir.Parent)
         {
-            // core: Stop searching when we reach the scheduler-home.
-            if (ComparePaths.AreEqual(dir.FullName, workflowPath.Home))
-            {
-                break;
-            }
-
             var profilePath = Path.Join(dir.FullName, ".profile.json");
             if (await FromJsonOrNull(profilePath) is { } current)
             {
                 logger.Internal.LogDebug("Merging logger-profile with '{profile.path}'.", profilePath);
                 profile += current;
             }
+
+            // core: Stop searching when we reach the scheduler-home.
+            if (ComparePaths.AreEqual(dir.FullName, workflowPath.Root))
+            {
+                break;
+            }
         }
 
         return profile;
     }
 
-    public async Task<WorkflowProfile?> FromJsonOrNull(string profilePath)
+    private async Task<WorkflowProfile?> FromJsonOrNull(string profilePath)
     {
-        using var scope = logger.BeginScopeWith(("profile.path", profilePath));
+        using var scope = logger.BeginScopeWith(("workflow.profile.name", Path.GetFileNameWithoutExtension(profilePath)));
 
         if (!File.Exists(profilePath))
         {
-            logger.Internal.LogError("Cannot load workflow-profile from '{profile.path}' because it does not exist.", profilePath);
+            logger.Baseline.LogError("Workflow profile '{workflow.profile.name}' does not exist.");
             return null;
         }
 
@@ -66,17 +66,12 @@ public class LoadWorkflowProfile
 
             if (profile is null)
             {
-                logger.Internal.LogError("File '{profile.path}' is empty. It needs to contain a workflow-profile.");
+                logger.Baseline.LogError("Workflow profile '{workflow.profile.name}' is empty.");
                 return null;
             }
 
-            if (validateWorkflowProfile.That(profile).ToList() is { Count: > 0 } issues)
+            if (!validateWorkflowProfile.That(profile))
             {
-                foreach (var issue in issues)
-                {
-                    logger.Internal.LogError("{profile.issue}", issue);
-                }
-
                 return null;
             }
 
@@ -88,7 +83,7 @@ public class LoadWorkflowProfile
         }
         catch (Exception e)
         {
-            logger.Internal.LogError(e, "File '{profile.path}' fails to deserialize as workflow-profile.");
+            logger.Internal.LogError(e, "Workflow profile '{workflow.profile.name}' fails to deserialize as workflow-profile.");
             return null;
         }
     }

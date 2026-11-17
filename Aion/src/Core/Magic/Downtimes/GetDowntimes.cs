@@ -15,7 +15,7 @@ public class GetDowntimes
     FindWorkflows findWorkflows
 )
 {
-    public async Task<ImmutableList<WorkflowDowntime>> Where(string? workflowPattern)
+    public async Task<ImmutableList<WorkflowDowntime>> Where(WorkflowPattern workflowPattern)
     {
         using var scope = logger.BeginScopeWith(("workflow.pattern", workflowPattern));
 

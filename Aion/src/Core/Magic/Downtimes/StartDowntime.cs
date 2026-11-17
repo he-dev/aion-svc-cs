@@ -15,7 +15,7 @@ public class StartDowntime
     FindWorkflows findWorkflows
 )
 {
-    public async Task<IImmutableList<StartDowntimeResult>> Now(string? workflowPattern, WorkflowDowntime downtime)
+    public async Task<IImmutableList<StartDowntimeResult>> Now(WorkflowPattern workflowPattern, WorkflowDowntime downtime)
     {
         using var scope = logger.BeginScopeWith(("workflow.pattern", workflowPattern));
         try

@@ -18,7 +18,7 @@ public class TestWorkflowDowntime
         var fakeStartsOnUtcNow = new DateTimeOffset(2025, 1, 1, 14, 0, 0, TimeSpan.Zero);
         var fakeEndsOnUtcNow = new DateTimeOffset(2025, 1, 1, 15, 0, 0, TimeSpan.Zero);
 
-        var workflowDowntime = WorkflowDowntime.At(fakeStartsOnUtcNow, fakeEndsOnUtcNow, fakeNowUtc) with { Clock = fakeNowUtc };
+        var workflowDowntime = WorkflowDowntime.At("pattern", fakeStartsOnUtcNow, fakeEndsOnUtcNow, fakeNowUtc) with { Clock = fakeNowUtc };
 
         Assert.Equal(WorkflowDowntimeStatus.Pending, workflowDowntime.Status);
         Assert.Equal(TimeSpan.FromHours(2), workflowDowntime.Remaining);
@@ -33,7 +33,7 @@ public class TestWorkflowDowntime
         var fakeNowUtc = new FakeTimeProvider(new DateTimeOffset(2025, 1, 1, 14, 0, 0, TimeSpan.Zero));
         var fakeEndsOnUtcNow = new DateTimeOffset(2025, 1, 1, 15, 0, 0, TimeSpan.Zero);
 
-        var workflowDowntime = WorkflowDowntime.At(fakeStartsOnUtcNow, fakeEndsOnUtcNow, fakeNowUtc) with { Clock = fakeNowUtc };
+        var workflowDowntime = WorkflowDowntime.At("pattern", fakeStartsOnUtcNow, fakeEndsOnUtcNow, fakeNowUtc) with { Clock = fakeNowUtc };
 
         Assert.Equal(WorkflowDowntimeStatus.Ongoing, workflowDowntime.Status);
         Assert.Equal(TimeSpan.FromHours(1), workflowDowntime.Remaining);
@@ -49,7 +49,7 @@ public class TestWorkflowDowntime
         var fakeUtcNow = new FakeTimeProvider(new DateTimeOffset(2025, 1, 1, 13, 30, 0, TimeSpan.Zero));
         var fakeUtcLater = new FakeTimeProvider(new DateTimeOffset(2025, 1, 1, 15, 0, 0, TimeSpan.Zero));
 
-        var workflowDowntime = WorkflowDowntime.At(fakeStartsOnUtcNow, fakeEndsOnUtcNow, fakeUtcNow) with { Clock = fakeUtcLater };
+        var workflowDowntime = WorkflowDowntime.At("pattern", fakeStartsOnUtcNow, fakeEndsOnUtcNow, fakeUtcNow) with { Clock = fakeUtcLater };
 
         Assert.Equal(WorkflowDowntimeStatus.Expired, workflowDowntime.Status);
         Assert.Equal(TimeSpan.FromHours(-1), workflowDowntime.Remaining);
@@ -64,9 +64,9 @@ public class TestWorkflowDowntime
         var fakeStartsOnUtcNow = new DateTimeOffset(2025, 1, 1, 14, 0, 0, TimeSpan.Zero);
         var fakeEndsOnUtcNow = new DateTimeOffset(2025, 1, 1, 15, 0, 0, TimeSpan.Zero);
 
-        var workflowLock = WorkflowDowntime.At(fakeStartsOnUtcNow, fakeEndsOnUtcNow, fakeNowUtc) with { Clock = fakeNowUtc };
+        var workflowDowntime = WorkflowDowntime.At("pattern", fakeStartsOnUtcNow, fakeEndsOnUtcNow, fakeNowUtc) with { Clock = fakeNowUtc };
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await workflowLock.EndsNow());
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await workflowDowntime.EndsNow());
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class TestWorkflowDowntime
         var fakeStartsOnUtcNow = new DateTimeOffset(2025, 1, 1, 14, 0, 0, TimeSpan.Zero);
         var fakeEndsOnUtcNow = new DateTimeOffset(2025, 1, 1, 15, 0, 0, TimeSpan.Zero);
 
-        var workflowDowntime = WorkflowDowntime.At(fakeStartsOnUtcNow, fakeEndsOnUtcNow, fakeNowUtc) with { Clock = fakeNowUtc };
+        var workflowDowntime = WorkflowDowntime.At("pattern", fakeStartsOnUtcNow, fakeEndsOnUtcNow, fakeNowUtc) with { Clock = fakeNowUtc };
         var lockPath = await workflowDowntime.ToFile(@"workflows\says-hallo.json");
 
         Assert.True(File.Exists(lockPath));

@@ -15,7 +15,7 @@ public static class CreateWorkflowTrigger
     )
     {
         // core: Cron and User triggers are different triggers.
-        var jobName = $"{workflowPath.Name}:{workflowTriggerMode}";
+        var jobName = $"{workflowPath.Relative}:{workflowTriggerMode}";
         var jobGroup = string.Join('/', new[] { "workflows", workflowPath.Directory }.Where(x => !string.IsNullOrEmpty(x)));
 
         var builder =

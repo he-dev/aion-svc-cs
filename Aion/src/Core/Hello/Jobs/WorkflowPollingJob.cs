@@ -2,6 +2,8 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Aion.Core.Magic.Workflows;
+using Aion.Data;
+using Aion.Util;
 using Microsoft.Extensions.Logging;
 using Quartz;
 using Wiretap.Core;
@@ -26,7 +28,7 @@ internal class WorkflowPollingJob
 
         try
         {
-            await scheduleWorkflow.AsCron();
+            await scheduleWorkflow.AsCron(WorkflowPattern.Any);
             scope.Last.LogDebug("Job '{job.group}:{job.name}' completed.");
         }
         catch (Exception ex)

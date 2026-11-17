@@ -1,15 +1,11 @@
-﻿using Microsoft.AspNetCore.Hosting;
+﻿using System;
+using Aion.Util;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Aion.Tests;
 
 // ReSharper disable once ClassNeverInstantiated.Global
-public class TestWebApplication : WebApplicationFactory<Program>
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-    }
+public sealed class TestWebApplication : WebApplicationFactory<Program>;
 
-
-}

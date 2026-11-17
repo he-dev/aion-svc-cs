@@ -19,7 +19,7 @@ public class ScheduleWorkflow
 {
     // https://www.quartz-scheduler.net/documentation/quartz-3.x/quick-start.html
 
-    public async Task AsCron(string? workflowPattern = null)
+    public async Task AsCron(WorkflowPattern workflowPattern)
     {
         var scheduler = await schedulerFactory.GetScheduler();
 
@@ -91,7 +91,7 @@ public class ScheduleWorkflow
         }
     }
 
-    public async Task AsOnce(string workflowPattern, WorkflowOverride workflowOverride)
+    public async Task AsOnce(WorkflowPattern workflowPattern, WorkflowOverride workflowOverride)
     {
         var scheduler = await schedulerFactory.GetScheduler();
 
