@@ -31,7 +31,7 @@ public class CreateWorkflowSummary
             var inMemoryFork = new InMemoryFork();
             using var unsubscribe = forkLogging.Into(inMemoryFork);
 
-            if (await loadWorkflow.From(workflowPath) is { } workflow)
+            if (await loadWorkflow.FromFile(workflowPath) is { } workflow)
             {
                 var next = workflow.Trigger.FiresAt(utcNow).Take(3).Select(x => x.ToLocalTime());
                 summaries = summaries.Add(new

@@ -17,7 +17,7 @@ public class ExecuteStep
     StartProcess startProcess
 )
 {
-    public async Task<bool> AsProcess(Workflow.Step step, CancellationToken cancellationToken = default)
+    public async Task<bool> AsProcess(Workflow.Step step, WorkflowTriggerSource source, CancellationToken cancellationToken = default)
     {
         using var about = logger.Baseline.BeginScopeAbout<ExecuteStep>
         ([
@@ -29,10 +29,11 @@ public class ExecuteStep
         {
             about.Zero.LogDebug(null);
 
+            var activity = Activity.Current!;
             var exitCode = await startProcess.Invoke
             (
                 step.FileName,
-                step.Arguments(Activity.Current!.TraceId.ToString()).Join(" "),
+                step.Arguments(source, activity.TraceId.ToString(), activity.ParentSpanId.ToString()).Join(" "),
                 step.WorkingDirectory,
                 step.Environment.ToDictionary(),
                 step.Timeout,
@@ -64,7 +65,7 @@ public class ExecuteStep
         }
         catch (Exception ex)
         {
-            about.Last.LogError(ex, "Step {workflow.step.index} failed after {activity.duration_ms:N0} ms with an exception.");
+            about.Last.LogError(ex, "Step {workflow.step.index} fails after {activity.duration_ms:N0} ms with an exception.");
             return false;
         }
     }

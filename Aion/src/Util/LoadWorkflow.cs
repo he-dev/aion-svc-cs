@@ -7,6 +7,7 @@ using Aion.Data;
 using Aion.Data.Scheduler;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Quartz;
 using Wiretap.Core;
 
 namespace Aion.Util;
@@ -20,9 +21,10 @@ public class LoadWorkflow
     LoadLoggingPreset loadLoggingPreset
 )
 {
-    public async Task<Workflow?> From(WorkflowPath workflowPath, WorkflowOverride? mod = null)
+    public async Task<Workflow?> FromFile(WorkflowPath workflowPath)
     {
-        using var about = logger.Internal.BeginScopeAbout<LoadWorkflow>([("@workflow.name", workflowPath)]);;
+        using var about = logger.Internal.BeginScopeAbout<LoadWorkflow>([("@workflow.name", workflowPath)]);
+        ;
         about.Zero.LogDebug("Loading workflow '{@workflow.name}'.", workflowPath);
 
         var spec = await loadWorkflowSpec.FromFileOrNull(workflowPath);
@@ -41,10 +43,10 @@ public class LoadWorkflow
             Spec = spec,
             Enabled = !spec.Disabled,
             Logger = await loadLoggingPreset.FromFromOrDefault(spec.Logger, global::Serilog.Core.Logger.None),
-            Trigger = CreateWorkflowTrigger.Cron(spec.Path, spec.Cron),
+            Trigger = CreateWorkflowTrigger.Create(spec.Path, WorkflowTriggerSource.Job, builder => builder.WithCronSchedule(spec.Cron)),
             Variables = spec.Variables.ToImmutableDictionary(),
             Steps = []
-        } + mod;
+        };
 
         var variableGroups = ImmutableList<IVariableGroup>.Empty.AddRange
         ([
@@ -56,11 +58,11 @@ public class LoadWorkflow
             new WorkflowVariableGroup(workflow.Variables)
             {
                 Path = spec.Path,
-                TriggerMode = workflow.TriggerMode,
             }
         ]);
 
-        var nullSteps = spec.Steps.Select(step => CreateStep(step, variableGroups)).ToLookup(step => step is null);;
+        var nullSteps = spec.Steps.Select(step => CreateStep(step, variableGroups)).ToLookup(step => step is null);
+        ;
 
         if (nullSteps[true].Any())
         {
@@ -93,9 +95,14 @@ public class LoadWorkflow
                 Index = spec.Index,
                 Name = spec.Name,
                 FileName = spec.FileName.Render(variables),
-                Arguments = traceId =>
+                Arguments = (source, traceId, parentSpanId) =>
                 {
-                    var local = variables.Add(new ExecutionVariableGroup { TraceId = traceId });
+                    var local = variables.Add(new ExecutionVariableGroup
+                    {
+                        Source = source,
+                        TraceId = traceId,
+                        ParentSpanId = parentSpanId
+                    });
                     return [.. spec.Arguments.Select(argument => argument.Render(local))];
                 },
                 Environment = spec.Environment.ToImmutableDictionary(x => x.Key, x => x.Value.Render(variables)),
@@ -104,7 +111,7 @@ public class LoadWorkflow
             };
 
             // core: Execute arguments with a random trace ID to ensure that it works.
-            step.Arguments(ActivityTraceId.CreateRandom().ToString());
+            //step.Arguments(ActivityTraceId.CreateRandom().ToString());
 
             return step;
         }

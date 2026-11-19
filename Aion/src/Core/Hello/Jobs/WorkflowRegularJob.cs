@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using System.Threading;
 using System.Threading.Tasks;
 using Aion.Core.Magic.Workflows;
@@ -26,16 +27,16 @@ public class WorkflowRegularJob
         ([
             ("job.key", context.JobDetail.Key),
             ("@workflow.name", workflowPath),
-            ("workflow.mode", WorkflowTriggerMode.Cron)
+            ("workflow.mode", WorkflowTriggerSource.Job)
         ]);
 
         about.Zero.Internal.LogDebug(null);
 
         try
         {
-            if (await loadWorkflow.From(workflowPath) is { } workflow)
+            if (await loadWorkflow.FromFile(workflowPath) is { } workflow)
             {
-                await executeWorkflow.Invoke(workflow, cancellationToken);
+                await executeWorkflow.Invoke(workflow, WorkflowTriggerSource.Job, ImmutableList<string>.Empty, cancellationToken);
             }
             else
             {

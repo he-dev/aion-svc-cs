@@ -40,6 +40,7 @@ public class ValidateWorkflowProfileTest(TestWebApplication testApp) : IClassFix
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = forkLogging.Into(inMemoryFork);
 
+        // test: This logger does not exist.
         var profile = new WorkflowProfileJson { Logger = "fake-28-days" };
         Assert.False(validateWorkflowProfile.That(profile));
 

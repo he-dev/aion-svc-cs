@@ -20,8 +20,8 @@ public class WorkflowVariableGroup : PropertyScriptObject, IVariableGroup
         }
     }
 
+
     public required string Path { get; init; }
-    public required WorkflowTriggerMode TriggerMode { get; init; }
 }
 
 public class StepVariableGroup : PropertyScriptObject, IVariableGroup
@@ -32,5 +32,7 @@ public class StepVariableGroup : PropertyScriptObject, IVariableGroup
 
 public class ExecutionVariableGroup : PropertyScriptObject, IVariableGroup
 {
+    public required WorkflowTriggerSource Source { get; init; }
     public required string TraceId { get; init; }
+    public required string ParentSpanId { get; init; }
 }

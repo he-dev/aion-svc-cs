@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,43 +18,55 @@ public class ExecuteWorkflow
     ExecuteStep executeStep
 )
 {
-    public async Task Invoke(Workflow workflow, CancellationToken cancellationToken = default)
+    public async Task Invoke(Workflow workflow, WorkflowTriggerSource source, IImmutableList<string> steps, CancellationToken cancellationToken = default)
     {
         using var loggerBug = forkLogging.Into(new LoggerFork(workflow.Logger));
         using var about = logger.Baseline.BeginScopeAbout<ExecuteWorkflow>
         ([
             ("@workflow.name", workflow.Spec.Path),
-            ("workflow.mode", workflow.TriggerMode)
+            ("workflow.trigger.source", source)
         ]);
 
         about.Zero.LogDebug(null);
 
-        var stepResults = new List<bool>();
         try
         {
-            foreach (var step in workflow.Steps)
+            if (steps.Count > 0)
             {
-                if (step.Enabled)
+                about.Tick.LogInformation("Executing custom steps: {workflow.steps}.", steps);
+
+                foreach (var name in steps)
                 {
-                    stepResults.Add(await executeStep.AsProcess(step, cancellationToken));
+                    if (workflow.Steps.SingleOrDefault(s => name.Equals(s.Name, StringComparison.InvariantCultureIgnoreCase)) is { } step)
+                    {
+                        await executeStep.AsProcess(step, source, cancellationToken);
+                    }
+                    else
+                    {
+                        about.Tick.LogInformation("Skipping step {workflow.step.name} because it does not exist.", name);
+                    }
                 }
-                else
+            }
+            else
+            {
+                about.Tick.LogInformation("Executing default steps.");
+
+                foreach (var step in workflow.Steps)
                 {
-                    about.Tick.LogInformation("Skipping step {workflow.step.index} because it is disabled.", step.Index);
+                    if (step.Enabled)
+                    {
+                        await executeStep.AsProcess(step, source, cancellationToken);
+                    }
+                    else
+                    {
+                        about.Tick.LogInformation("Skipping step {workflow.step.index} because it is disabled.", step.Index);
+                    }
                 }
             }
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            using var stats = logger.BeginScopeWith
-            (
-                ("workflow.step.count.enabled", workflow.Steps.Count(step => step.Enabled)),
-                ("workflow.step.count.success", stepResults.Count(result => result)),
-                ("workflow.step.count.failure", stepResults.Count(result => !result))
-            );
-            about
-                .Last
-                .LogInformation("Workflow '{@workflow.name}' completes in {activity.duration_ms:N0} ms. Steps: {workflow.step.count.success} okay, {workflow.step.count_failure} failed.");
+            about.Last.LogInformation("Workflow '{@workflow.name}' completes in {activity.duration_ms:N0} ms.");
         }
         catch (OperationCanceledException)
         {
@@ -64,10 +77,5 @@ public class ExecuteWorkflow
         {
             about.Last.LogError(ex, "Workflow '{@workflow.name}' fails after {activity.duration_ms:N0} ms.");
         }
-    }
-
-    public Task<bool> Step(Workflow.Step step, CancellationToken cancellationToken)
-    {
-        return executeStep.AsProcess(step, cancellationToken);
     }
 }

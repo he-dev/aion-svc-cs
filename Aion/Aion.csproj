@@ -13,9 +13,9 @@
         <PackageReference Include="Swashbuckle.AspNetCore" Version="11.0.1" />
         <PackageReference Include="Quartz.AspNetCore" Version="4.7.3" />
         <PackageReference Include="Scriban" Version="7.6.1" />
-        <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+        <PackageReference Include="Serilog.AspNetCore" Version="11.0.0" />
         <PackageReference Include="Serilog.Expressions" Version="5.0.0"/>
-        <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.1" />
+        <PackageReference Include="Serilog.Settings.Configuration" Version="11.0.0" />
         <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
         <PackageReference Include="Serilog.Sinks.File" Version="7.0.0"/>
         <PackageReference Include="Wiretap" Version="14.0.4" />
@@ -26,5 +26,10 @@
     <ItemGroup>
       <Folder Include="src\Core\Hello\" />
     </ItemGroup>
+
+    <PropertyGroup>
+        <!-- meta: Disables the annoying warning about not supplying parameters for placeholders that can be resolved from scope. -->
+        <NoWarn>$(NoWarn);CA2017</NoWarn>
+    </PropertyGroup>
 
 </Project>

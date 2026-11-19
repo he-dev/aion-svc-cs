@@ -4,12 +4,81 @@ using System.IO;
 using System.Linq;
 using Aion.Data;
 using Aion.Data.Scheduler;
+using Aion.Util.Serilog;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Quartz;
 using Wiretap.Core;
 
 namespace Aion.Util;
+
+public abstract class Validate<TSubject>(ILogger<TSubject> logger, ForkLogging forkLogging)
+{
+    public bool Subject(TSubject subject)
+    {
+        var inMemoryFork = new InMemoryFork();
+        using var unsubscribe = forkLogging.Into(inMemoryFork);
+
+        foreach (var policy in Policies(logger))
+        {
+            try
+            {
+                policy.Check(subject, logger);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Error checking the '{policy.name}' policy for '{policy.subject}'.", policy.Name, typeof(TSubject).Name);
+            }
+        }
+
+        return inMemoryFork.AtLeast(LogLevel.Error).Any();
+    }
+
+    protected abstract IEnumerable<Policy> Policies(ILogger logger);
+
+    protected abstract class Policy
+    {
+        public string Name => GetType().Name;
+
+        public abstract void Check(TSubject subject, ILogger logger);
+    }
+}
+
+public class ValidateWorkflowFile2(ILogger<WorkflowFile> logger, ForkLogging forkLogging) : Validate<WorkflowFile>(logger, forkLogging)
+{
+    protected override IEnumerable<Policy> Policies(ILogger logger)
+    {
+        yield return new Cron();
+    }
+
+    private class Cron : Policy
+    {
+        public override void Check(WorkflowFile subject, ILogger logger)
+        {
+            if (string.IsNullOrWhiteSpace(subject.Cron))
+            {
+                logger.LogError("Cannot use workflow property '{workflow.property}' because it is null or empty.", nameof(WorkflowFile.Cron));
+            }
+            else
+            {
+                var cronErrorMessage = (string?)null;
+                try
+                {
+                    _ = CronExpression.Parse(subject.Cron);
+                }
+                catch (Exception e)
+                {
+                    cronErrorMessage = e.Message;
+                }
+
+                if (cronErrorMessage is not null)
+                {
+                    logger.LogError("Cannot use workflow property '{workflow.property}' because it is not a valid cron expression: {workflow.error}", nameof(WorkflowFile.Cron), cronErrorMessage);
+                }
+            }
+        }
+    }
+}
 
 public class ValidateWorkflowFile
 (
@@ -136,7 +205,7 @@ public class ValidateWorkflowFile
             isValid = false;
         }
 
-        if(step.Environment is not null && step.Environment.Values.Any(string.IsNullOrWhiteSpace))
+        if (step.Environment is not null && step.Environment.Values.Any(string.IsNullOrWhiteSpace))
         {
             about.Tick.LogError("Step {workflow.step.index} issue: One or more environment variables are null or empty.", index);
             isValid = false;

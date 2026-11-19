@@ -62,7 +62,10 @@ builder
             .Enrich.With<EnrichLogEventWithActivity>()
             .Enrich.With(new EnrichLogEventWithDuration(ts => (int)ts.TotalMilliseconds))
             .WriteTo.Sink(services.GetRequiredService<ForkLogging>());
-    });
+        // meta: Prevents overwriting Serilog's internal static Log.Logger
+        // that otherwise will fuck up tests with multiple parallel hosts.
+        // note: This is by far one of the dumbest parameter names with an even dumber docstring.
+    }, preserveStaticLogger: true);
 
 builder.Services.AddSingleton(x => x.GetRequiredService<IHostEnvironment>().ContentRootFileProvider);
 

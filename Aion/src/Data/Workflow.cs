@@ -1,11 +1,10 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
-using Aion.Util;
 using Quartz;
 
 namespace Aion.Data;
+
+public delegate IImmutableList<string> RenderArguments(WorkflowTriggerSource source, string traceId, string parentSpanId);
 
 public record Workflow
 {
@@ -15,8 +14,6 @@ public record Workflow
 
     // core: Use a trigger that is always in the past to satisfy the null-object pattern and keep it harmless.
     public required ITrigger Trigger { get; init; }
-
-    public WorkflowTriggerMode TriggerMode => Trigger is ICronTrigger ? WorkflowTriggerMode.Cron : WorkflowTriggerMode.User;
 
     public required IImmutableDictionary<string, string> Variables { get; init; }
 
@@ -37,31 +34,12 @@ public record Workflow
         public required string FileName { get; init; }
 
         // note: Arguments can pass runtime values such as activity ids, so this property must be lazy.
-        public required Func<string, IEnumerable<string>> Arguments { get; init; }
+        public required RenderArguments Arguments { get; init; }
 
         public required IImmutableDictionary<string, string> Environment { get; init; }
 
         public required string WorkingDirectory { get; init; }
 
         public required TimeSpan Timeout { get; init; }
-    }
-
-    public static Workflow operator +(Workflow workflow, WorkflowOverride? patch)
-    {
-        if (patch is null) return workflow;
-
-        return workflow with
-        {
-            Enabled = true,
-            Trigger = CreateWorkflowTrigger.Simple(workflow.Spec.Path, patch.StartAt),
-            Steps =
-            [
-                ..
-                from step in workflow.Steps
-                where patch.Steps.Contains(step.Name, StringComparer.OrdinalIgnoreCase)
-                // core: Custom steps are always enabled.
-                select step with { Enabled = true }
-            ]
-        };
     }
 }

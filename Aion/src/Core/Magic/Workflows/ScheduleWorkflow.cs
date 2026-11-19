@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Immutable;
 using System.Threading.Tasks;
 using Aion.Core.Hello.Jobs;
 using Aion.Data;
@@ -21,46 +22,56 @@ public class ScheduleWorkflow
 
     public async Task AsCron(WorkflowPattern workflowPattern)
     {
-        var scheduler = await schedulerFactory.GetScheduler();
-
         foreach (var workflowPath in findWorkflows.Where(workflowPattern))
         {
-            using var about = logger.Baseline.BeginScopeAbout<ScheduleWorkflow>
-            ([
-                ("@workflow.name", workflowPath),
-            ]);
-            about.Zero.Internal.LogDebug(null);
-
-            if (await loadWorkflow.From(workflowPath) is not { } workflow)
+            if (await loadWorkflow.FromFile(workflowPath) is { } workflow)
             {
-                about.Last.LogError("Skips workflow '{@workflow.name}' because it did not load.", workflowPath);
-                continue;
+                await AsCron(workflow);
             }
-
-            if (workflow.Trigger is not ICronTrigger cronTrigger)
+            else
             {
-                about.Last.LogError("Skips workflow '{@workflow.name}' because its trigger is not cron.", workflowPath);
-                continue;
+                logger
+                    .Snap<ScheduleWorkflow>()
+                    .Baseline
+                    .LogError("Skips workflow '{@workflow.name}' because it does not load.", workflowPath);
             }
+        }
+    }
 
-            about.Tick.LogDebug("Trigger '{workflow.trigger.key}': {workflow.trigger.cron}", cronTrigger.Key, cronTrigger.CronExpressionString);
+    private async Task AsCron(Workflow workflow)
+    {
+        var scheduler = await schedulerFactory.GetScheduler();
 
-            // core: Compare cron expressions only if the workflow is already scheduled.
-            if (await scheduler.GetTrigger(cronTrigger.Key) is ICronTrigger { CronExpressionString: { } currentCron })
+        using var about = logger.Baseline.BeginScopeAbout<ScheduleWorkflow>
+        ([
+            ("@workflow.name", workflow.Spec.Path),
+        ]);
+        about.Zero.Internal.LogDebug(null);
+
+        if (workflow.Trigger is not ICronTrigger cronTrigger)
+        {
+            about.Last.LogError("Skips workflow '{@workflow.name}' because its trigger is not cron.");
+            return;
+        }
+
+        about.Tick.LogDebug("Trigger '{workflow.trigger.key}': {workflow.trigger.cron}", cronTrigger.Key, cronTrigger.CronExpressionString);
+
+        // core: Compare cron expressions only if the workflow is already scheduled.
+        if (await scheduler.GetTrigger(cronTrigger.Key) is ICronTrigger { CronExpressionString: { } currentCron })
+        {
+            // core: Compare both the cron expressions.
+            if (cronTrigger is { CronExpressionString: { } otherCron } && currentCron.Equals(otherCron))
             {
-                // core: Compare the cron expressions.
-                if (cronTrigger is { CronExpressionString: { } otherCron } && currentCron.Equals(otherCron))
-                {
-                    about.Last.LogInformation("Workflow '{@workflow.name}' has not changed.");
-                    continue;
-                }
-
+                about.Last.LogInformation("Workflow '{@workflow.name}' has not changed.");
+            }
+            else
+            {
                 if (await scheduler.RescheduleJob(cronTrigger.Key, cronTrigger) is { } next)
                 {
                     about.Last.LogInformation
                     (
                         "Reschedules workflow '{@workflow.name}' to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.",
-                        workflowPath,
+                        workflow.Spec.Path,
                         cronTrigger.CronExpressionString,
                         next
                     );
@@ -70,85 +81,92 @@ public class ScheduleWorkflow
                     about.Last.LogError("Cannot reschedule '{@workflow.name}'.");
                 }
             }
-            else
-            {
-                var jobDetail =
-                    JobBuilder
-                        .Create<WorkflowRegularJob>()
-                        .WithIdentity(cronTrigger.JobKey)
-                        .DisallowConcurrentExecution()
-                        .Build();
+        }
+        else
+        {
+            var jobDetail =
+                JobBuilder
+                    .Create<WorkflowRegularJob>()
+                    .WithIdentity(cronTrigger.JobKey)
+                    .DisallowConcurrentExecution()
+                    .Build();
 
-                var next = await scheduler.ScheduleJob(jobDetail, cronTrigger);
-                about.Last.LogInformation
-                (
-                    "Schedules workflow '{@workflow.name}' to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.",
-                    workflowPath,
-                    cronTrigger.CronExpressionString,
-                    next
-                );
-            }
+            var next = await scheduler.ScheduleJob(jobDetail, cronTrigger);
+            about.Last.LogInformation
+            (
+                "Schedules workflow '{@workflow.name}' to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.",
+                workflow.Spec.Path,
+                cronTrigger.CronExpressionString,
+                next
+            );
         }
     }
 
     public async Task AsOnce(WorkflowPattern workflowPattern, WorkflowOverride workflowOverride)
     {
-        var scheduler = await schedulerFactory.GetScheduler();
-
         foreach (var workflowPath in findWorkflows.Where(workflowPattern))
         {
-            using var about = logger.Baseline.BeginScopeAbout<ScheduleWorkflow>
-            ([
-                ("@workflow.name", workflowPath),
-            ]);
-            about.Zero.Internal.LogDebug(null);
-
-            if (await loadWorkflow.From(workflowPath, workflowOverride) is not { } workflow)
+            var trigger = CreateWorkflowTrigger.Create(workflowPath, WorkflowTriggerSource.Web, builder =>
             {
-                logger.Baseline.LogError("Skips workflow '{@workflow.name}' because it did not load.");
-                continue;
-            }
+                builder
+                    .StartAt(workflowOverride.StartAt)
+                    .WithSimpleSchedule(x => x.WithRepeatCount(0));
+            });
 
-            if (workflow.Trigger is ICronTrigger)
+            if (await loadWorkflow.FromFile(workflowPath) is { } workflow)
             {
-                about.Last.LogError("Skips workflow {@workflow.name} because its trigger is cron.");
-                continue;
-            }
-
-            if (await scheduler.GetTrigger(workflow.Trigger.Key) is not null)
-            {
-                if (await scheduler.RescheduleJob(workflow.Trigger.Key, workflow.Trigger) is { } next)
-                {
-                    about.Last.LogInformation
-                    (
-                        "Reschedules {@workflow.name}. Next execution at '{workflow.trigger.next}'.",
-                        workflowPath,
-                        next
-                    );
-                }
-                else
-                {
-                    about.Last.LogError("Cannot reschedule '{@workflow.name}'.");
-                }
+                await AsOnce(workflow, trigger, [.. workflowOverride.Steps]);
             }
             else
             {
-                var jobDetail =
-                    JobBuilder
-                        .Create<WorkflowCustomJob>()
-                        .WithIdentity(workflow.Trigger.JobKey)
-                        .UsingJobData(JobDataKeys.WorkflowPath, workflowPath)
-                        .UsingJobData(JobDataKeys.WorkflowMod, workflowOverride)
-                        .DisallowConcurrentExecution()
-                        .Build();
+                logger.Snap<ScheduleWorkflow>().Baseline.LogError("Skips workflow '{@workflow.name}' because it does not load.");
+            }
+        }
+    }
 
-                var nextNew = await scheduler.ScheduleJob(jobDetail, workflow.Trigger);
-                about.Last.LogInformation(
-                    "Schedules workflows '{@workflow.name}'. Next execution at '{workflow.trigger.next}'.",
-                    workflowPath,
-                    nextNew
+    private async Task AsOnce(Workflow workflow, ITrigger trigger, IImmutableList<string> steps)
+    {
+        using var about = logger.Baseline.BeginScopeAbout<ScheduleWorkflow>
+        ([
+            ("@workflow.name", workflow.Spec.Path),
+        ]);
+        about.Zero.Internal.LogDebug(null);
+
+
+        var scheduler = await schedulerFactory.GetScheduler();
+        if (await scheduler.GetTrigger(trigger.Key) is not null)
+        {
+            if (await scheduler.RescheduleJob(trigger.Key, trigger) is { } next)
+            {
+                about.Last.LogInformation
+                (
+                    "Reschedules {@workflow.name}. Next execution at '{workflow.trigger.next}'.",
+                    workflow.Spec.Path,
+                    next
                 );
             }
+            else
+            {
+                about.Last.LogError("Cannot reschedule '{@workflow.name}'.");
+            }
+        }
+        else
+        {
+            var jobDetail =
+                JobBuilder
+                    .Create<WorkflowCustomJob>()
+                    .WithIdentity(workflow.Trigger.JobKey)
+                    .UsingJobData(JobDataKeys.WorkflowPath, workflow.Spec.Path)
+                    .UsingJobData(JobDataKeys.WorkflowSteps, steps)
+                    .DisallowConcurrentExecution()
+                    .Build();
+
+            var nextNew = await scheduler.ScheduleJob(jobDetail, workflow.Trigger);
+            about.Last.LogInformation(
+                "Schedules workflows '{@workflow.name}'. Next execution at '{workflow.trigger.next}'.",
+                workflow.Spec.Path,
+                nextNew
+            );
         }
     }
 

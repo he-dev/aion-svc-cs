@@ -7,16 +7,16 @@ namespace Aion.Util;
 
 public static class CreateWorkflowTrigger
 {
-    private static ITrigger Create
+    public static ITrigger Create
     (
         WorkflowPath workflowPath,
-        WorkflowTriggerMode workflowTriggerMode,
-        Action<TriggerBuilder<IJob>> customize
+        WorkflowTriggerSource workflowTriggerSource,
+        Action<TriggerBuilder<IJob>> configure
     )
     {
         // core: Cron and User triggers are different triggers.
-        var jobName = $"{workflowPath.Relative}:{workflowTriggerMode}";
-        var jobGroup = string.Join('/', new[] { "workflows", workflowPath.Directory }.Where(x => !string.IsNullOrEmpty(x)));
+        var jobName = $"{workflowPath.Name}@{workflowTriggerSource}";
+        var jobGroup = "workflows";
 
         var builder =
             TriggerBuilder
@@ -26,33 +26,9 @@ public static class CreateWorkflowTrigger
                 .UsingJobData(new JobDataMap
                 {
                     { nameof(WorkflowPath), workflowPath },
-                    { nameof(WorkflowTriggerMode), workflowTriggerMode }
+                    { nameof(WorkflowTriggerSource), workflowTriggerSource }
                 });
-        customize(builder);
+        configure(builder);
         return builder.Build();
     }
-
-    public static ITrigger Cron
-    (
-        WorkflowPath workflowPath,
-        string cronExpression
-    ) => Create
-    (
-        workflowPath,
-        WorkflowTriggerMode.Cron,
-        builder => builder.WithCronSchedule(cronExpression)
-    );
-
-    public static ITrigger Simple
-    (
-        WorkflowPath workflowPath,
-        DateTimeOffset startAtUtc
-    ) => Create
-    (
-        workflowPath,
-        WorkflowTriggerMode.User,
-        builder => builder.StartAt(startAtUtc).WithSimpleSchedule(x => x.WithRepeatCount(0))
-    );
-
-    public static ITrigger Never(WorkflowPath workflowPath) => Simple(workflowPath, DateTimeOffset.MinValue);
 }
