@@ -44,7 +44,7 @@ public class LoadWorkflowSpec
             return null;
         }
 
-        if (!validateWorkflowFile.That(data))
+        if (!validateWorkflowFile.Invoke(data))
         {
             about.Last.LogDebug(null);
             return null;

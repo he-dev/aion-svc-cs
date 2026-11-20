@@ -48,10 +48,8 @@ public class FindWorkflows
                 logger
                     .Baseline
                     .With(("workflow.count", workflow.Count()))
-                    .LogError("Workflow '{workflow.name}' is ambiguous. Only one extension [json, yaml, yml] per name is allowed.", workflow.Key);
+                    .LogError("Workflow '{workflow.name}' is ambiguous. Only one extension [.json, .yaml, .yml] per name is allowed.", workflow.Key);
             }
-
-            return ImmutableArray<WorkflowPath>.Empty;
         }
 
         logger.Baseline.LogInformation("There are {workflow.count} workflows that match '{workflow.pattern}'.", matches.Count, pattern.Value);

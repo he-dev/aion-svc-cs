@@ -24,7 +24,6 @@ public class LoadWorkflow
     public async Task<Workflow?> FromFile(WorkflowPath workflowPath)
     {
         using var about = logger.Internal.BeginScopeAbout<LoadWorkflow>([("@workflow.name", workflowPath)]);
-        ;
         about.Zero.LogDebug("Loading workflow '{@workflow.name}'.", workflowPath);
 
         var spec = await loadWorkflowSpec.FromFileOrNull(workflowPath);
