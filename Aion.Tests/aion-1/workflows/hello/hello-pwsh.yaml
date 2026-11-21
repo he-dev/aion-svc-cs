@@ -1,5 +1,5 @@
 cron: "0/5 * * * * ?"
-logger: "@profile"
+logger: null
 steps:
   - fileName: "pwsh"
     arguments:

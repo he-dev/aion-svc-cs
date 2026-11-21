@@ -49,7 +49,7 @@ public class ValidateWorkflowConfig
         {
             if (string.IsNullOrWhiteSpace(value))
             {
-                about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Variables![key]), "null or empty");
+                about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Variables[key]), "null or empty");
             }
         }
 
@@ -72,7 +72,7 @@ public class ValidateWorkflowConfig
             {
                 if (step is null)
                 {
-                    about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Steps![index]), "is null");
+                    about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Steps[index]), "is null");
                 }
                 else
                 {
@@ -92,28 +92,27 @@ public class ValidateWorkflowConfig
 
         if (step.Name is not null && string.IsNullOrWhiteSpace(step.Name))
         {
-            about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Steps![index]!.Name), "is empty");
+            about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Steps[index].Name), "is empty");
         }
 
         if (string.IsNullOrWhiteSpace(step.FileName))
         {
-            about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Steps![index]!.FileName), "is null or empty");
+            about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Steps[index].FileName), "is null or empty");
         }
 
-
-        foreach (var (argument, i) in (step.Arguments ?? []).Select((x, i) => (x, i)))
+        foreach (var (argument, i) in step.Arguments.Select((x, i) => (x, i)))
         {
             if (string.IsNullOrWhiteSpace(argument))
             {
-                about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Steps![index]!.Arguments![i]), "is null or empty");
+                about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Steps[index].Arguments[i]), "is null or empty");
             }
         }
 
-        foreach (var (key, value) in step.Environment ?? new Dictionary<string, string?>())
+        foreach (var (key, value) in step.Environment)
         {
             if (string.IsNullOrWhiteSpace(value))
             {
-                about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Steps![index]!.Environment![key]), "is null or empty");
+                about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Steps[index].Environment[key]), "is null or empty");
             }
         }
 
@@ -124,7 +123,7 @@ public class ValidateWorkflowConfig
 
         if (step.Timeout < TimeSpan.Zero)
         {
-            about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Steps![index]!.Timeout), "is less than zero");
+            about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Steps[index].Timeout), "is less than zero");
         }
 
         about.Last.LogDebug(null);

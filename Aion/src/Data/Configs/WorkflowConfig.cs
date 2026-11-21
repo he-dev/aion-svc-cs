@@ -6,8 +6,6 @@ namespace Aion.Data.Configs;
 // note: This class is deserialized from workflow JSON.
 public record WorkflowConfig
 {
-    public StepConfig[] Steps { get; init; } = [];
-
     public bool Enabled { get; init; }
 
     public string Cron { get; init; } = null!;
@@ -15,6 +13,8 @@ public record WorkflowConfig
     public Dictionary<string, string> Variables { get; init; } = new();
 
     public string? Logger { get; init; }
+
+    public StepConfig[] Steps { get; init; } = [];
 }
 
 public record StepConfig

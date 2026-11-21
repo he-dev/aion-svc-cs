@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -19,32 +21,38 @@ public class LoadWorkflowConfig
     ValidateWorkflowConfig validateWorkflowConfig
 )
 {
+    // core: In case the config specifies explicit nulls, fallback to empty collections.
+    [SuppressMessage("ReSharper", "NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract")]
     public async Task<WorkflowConfig?> FromFileOrNull(WorkflowPath workflowPath)
     {
-        using var about = logger.Baseline.BeginScopeAbout<LoadWorkflowConfig>
-        ([
-            ("@workflow.name", workflowPath)
-        ]);
-        about.Zero.Internal.LogDebug(null);
-
         if (!File.Exists(workflowPath))
         {
-            about.LogError("Workflow config '{@workflow.name}' does not exist.");
+            logger.Baseline.LogError("Workflow config '{@workflow.name}' does not exist.");
             return null;
         }
 
-        var config = workflowPath.Extension.ToLowerInvariant() switch
-        {
-            ".json" => await FromJsonOrNull(workflowPath),
-            ".yaml" or ".yml" => await FromYamlOrNull(workflowPath),
-            _ => throw new NotSupportedException($"Extension '{workflowPath.Extension}' is not supported.")
-        };
+        var config = await FromJsonOrNull(workflowPath) ?? await FromYamlOrNull(workflowPath);
 
         if (config is null)
         {
-            about.Last.LogError("Workflow config '{@workflow.name}' is null or empty.");
+            logger.Baseline.LogError("Workflow config '{@workflow.name}' does not load.");
             return null;
         }
+
+        config = config with
+        {
+            Variables = config.Variables ?? new Dictionary<string, string>(),
+            Steps =
+            [
+                ..
+                from step in config.Steps
+                select step with
+                {
+                    Arguments = step.Arguments ?? [],
+                    Environment = step.Environment ?? new Dictionary<string, string>()
+                }
+            ]
+        };
 
         var configDefault = await loadWorkflowConfigDefault.FromFileOrEmpty(workflowPath);
 
@@ -57,17 +65,27 @@ public class LoadWorkflowConfig
 
         if (!validateWorkflowConfig.Invoke(config))
         {
-            about.Last.LogInformation("Workflow config '{@workflow.name}' fails some validations.");
+            logger.Baseline.LogError("Workflow config '{@workflow.name}' fails some validations.");
             return null;
         }
 
-        about.Last.LogInformation("Workflow config '{@workflow.name}' passes all validations.");
+        logger.Baseline.LogInformation("Workflow config '{@workflow.name}' passes all validations.");
 
         return config;
     }
 
     private async Task<WorkflowConfig?> FromJsonOrNull(WorkflowPath workflowPath)
     {
+        switch (Path.GetExtension(workflowPath).ToLowerInvariant())
+        {
+            case ".json":
+                // core: This extension is supported.
+                break;
+            default:
+                logger.Internal.LogDebug("Workflow config '{@workflow.name}' is not a JSON file.", workflowPath);
+                return null;
+        }
+
         try
         {
             await using var fileStream = new FileStream(workflowPath, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -84,13 +102,23 @@ public class LoadWorkflowConfig
         }
         catch (Exception e)
         {
-            logger.Snap<LoadWorkflowConfig>().Internal.LogError(e, "Workflow '{@workflow.name}' fails to load.", workflowPath);
+            logger.Baseline.LogError(e, "Workflow config '{@workflow.name}' fails to load.", workflowPath);
             return null;
         }
     }
 
     private async Task<WorkflowConfig?> FromYamlOrNull(WorkflowPath workflowPath)
     {
+        switch (Path.GetExtension(workflowPath).ToLowerInvariant())
+        {
+            case ".yaml" or ".yml":
+                // core: This extension is supported.
+                break;
+            default:
+                logger.Internal.LogDebug("Workflow config '{@workflow.name}' is not a YAML file.", workflowPath);
+                return null;
+        }
+
         try
         {
             var contents = await File.ReadAllTextAsync(workflowPath);
@@ -104,7 +132,7 @@ public class LoadWorkflowConfig
         }
         catch (Exception e)
         {
-            logger.Snap<LoadWorkflowConfig>().Internal.LogError(e, "Workflow '{@workflow.name}' fails to load.", workflowPath);
+            logger.Baseline.LogError(e, "Workflow config '{@workflow.name}' fails to load.", workflowPath);
             return null;
         }
     }

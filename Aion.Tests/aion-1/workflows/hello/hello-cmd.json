@@ -1,7 +1,7 @@
 {
   "Cron": "0/5 * * * * ?",
   "Variables": {},
-  "Logger": "@profile",
+  "Logger": null,
   "Steps": [
     {
       "FileName": "cmd.exe",

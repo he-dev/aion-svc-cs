@@ -1,6 +1,6 @@
 {
   "Cron": "0/5 * * * * ?",
-  "Logger": "@profile",
+  "Logger": null,
   "Steps": [
     {
       "FileName": "pwsh",

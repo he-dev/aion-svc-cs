@@ -27,7 +27,7 @@ public class WorkflowRegularJob
         ([
             ("job.key", context.JobDetail.Key),
             ("@workflow.name", workflowPath),
-            ("workflow.mode", WorkflowTriggerSource.Job)
+            ("workflow.mode", WorkflowMode.Job)
         ]);
 
         about.Zero.Internal.LogDebug(null);
@@ -36,7 +36,7 @@ public class WorkflowRegularJob
         {
             if (await loadWorkflowSpec.FromFile(workflowPath) is { } workflow)
             {
-                await executeWorkflow.Invoke(workflow, WorkflowTriggerSource.Job, ImmutableList<string>.Empty, cancellationToken);
+                await executeWorkflow.Invoke(workflow, WorkflowMode.Job, ImmutableList<string>.Empty, cancellationToken);
             }
             else
             {

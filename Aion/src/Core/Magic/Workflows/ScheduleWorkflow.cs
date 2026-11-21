@@ -107,7 +107,7 @@ public class ScheduleWorkflow
     {
         foreach (var workflowPath in findWorkflows.Where(workflowPattern))
         {
-            var trigger = CreateWorkflowTrigger.Create(workflowPath, WorkflowTriggerSource.Web, builder =>
+            var trigger = CreateWorkflowTrigger.Create(workflowPath, WorkflowMode.Web, builder =>
             {
                 builder
                     .StartAt(workflowOverride.StartAt)

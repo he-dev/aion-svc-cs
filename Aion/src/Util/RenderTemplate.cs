@@ -18,7 +18,7 @@ public static class RenderTemplate
 {
     private const int MaxPassCount = 10;
 
-    public static string Render(this string template, IImmutableList<IVariableGroup> variableGroups)
+    public static string Render(this TemplateString template, IImmutableList<IVariableGroup> variableGroups)
     {
         // note: Scriban's documentation recommends creating everything from scratch each time.
         var context = new TemplateContext
@@ -38,7 +38,7 @@ public static class RenderTemplate
         context.PushGlobal(ScriptObject.From(typeof(StringFunctions)));
         context.PushGlobal(CompositeVariableGroup.From(variableGroups.Add(new EnvironmentVariableGroup())));
 
-        var current = template;
+        var current = template.Value;
         var previous = string.Empty;
         var passCount = 0;
 

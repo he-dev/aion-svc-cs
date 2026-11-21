@@ -4,10 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using Aion.Data;
 using Aion.Data.Configs;
-using Aion.Data.Scheduler;
 using Aion.Data.Specs;
+using Aion.Data.Templating;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Quartz;
 using Wiretap.Core;
 
@@ -16,9 +15,7 @@ namespace Aion.Util;
 public class LoadWorkflowSpec
 (
     ILogger<LoadWorkflowSpec> logger,
-    IOptions<SchedulerOptions> schedulerOptions,
     LoadWorkflowConfig loadWorkflowConfig,
-
     LoadLoggingPreset loadLoggingPreset
 )
 {
@@ -35,34 +32,21 @@ public class LoadWorkflowSpec
             return null;
         }
 
-        // meta: Create a partial workflow first so that we can use the Mode property for variables.
+        // note: Create a partial workflow first so that we can use the Mode property for variables.
         var workflow = new WorkflowSpec
         {
             Path = workflowPath,
-            Trigger = CreateWorkflowTrigger.Create(workflowPath, WorkflowTriggerSource.Job, builder => builder.WithCronSchedule(config.Cron)),
-            Enabled = config.Enabled == true,
-            Variables = config.Variables.ToImmutableDictionary(),
+            Trigger = CreateWorkflowTrigger.Create(workflowPath, WorkflowMode.Job, builder => builder.WithCronSchedule(config.Cron)),
+            Enabled = config.Enabled,
+            Variables = config.Variables.ToImmutableDictionary(x => x.Key, x => TemplateString.From(x.Value)),
             Logger = await loadLoggingPreset.FromFromOrDefault(config.Logger, global::Serilog.Core.Logger.None),
             Steps = []
         };
 
-        var variableGroups = ImmutableList<IVariableGroup>.Empty.AddRange
-        ([
-            new SchedulerVariableGroup
-            {
-                Home = schedulerOptions.Value.Home,
-                Name = schedulerOptions.Value.Name,
-            },
-            new WorkflowVariableGroup(workflow.Variables)
-            {
-                Path = workflowPath,
-            }
-        ]);
-
         var nullSteps =
             config
                 .Steps
-                .Select((step, i) => CreateStep(step, i, variableGroups))
+                .Select(CreateStep)
                 .ToLookup(step => step is null);
 
         if (nullSteps[true].Any())
@@ -79,46 +63,21 @@ public class LoadWorkflowSpec
         return workflow;
     }
 
-    private StepSpec? CreateStep
-    (
-        StepConfig config,
-        int index,
-        IImmutableList<IVariableGroup> variables
-    )
+    private StepSpec? CreateStep(StepConfig config, int index)
     {
-        variables = variables.Add(new StepVariableGroup
-        {
-            Index = index,
-            Name = config.Name
-        });
-
         try
         {
-            var step = new StepSpec
+            return new StepSpec
             {
                 Index = index,
                 Name = config.Name,
                 Enabled = config.Enabled,
-                FileName = config.FileName.Render(variables),
-                Arguments = (source, traceId, parentSpanId) =>
-                {
-                    var local = variables.Add(new ExecutionVariableGroup
-                    {
-                        Source = source,
-                        TraceId = traceId,
-                        ParentSpanId = parentSpanId
-                    });
-                    return [.. config.Arguments.Select(argument => argument.Render(local))];
-                },
-                Environment = config.Environment.ToImmutableDictionary(x => x.Key, x => x.Value.Render(variables)),
-                WorkingDirectory = (config.WorkingDirectory ?? string.Empty).Render(variables),
+                FileName = config.FileName,
+                Arguments = [.. config.Arguments.Select(TemplateString.From)],
+                Environment = config.Environment.ToImmutableDictionary(x => x.Key, x => TemplateString.From(x.Value)),
+                WorkingDirectory = config.WorkingDirectory ?? string.Empty,
                 Timeout = config.Timeout,
             };
-
-            // core: Execute arguments with a random trace ID to ensure that it works.
-            //step.Arguments(ActivityTraceId.CreateRandom().ToString());
-
-            return step;
         }
         catch (Exception ex)
         {

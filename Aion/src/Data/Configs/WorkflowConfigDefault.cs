@@ -7,6 +7,8 @@ namespace Aion.Data.Configs;
 
 public record WorkflowConfigDefault
 {
+    public static readonly string FileName = ".default";
+
     public Dictionary<string, string> Variables { get; init; } =  new();
 
     public string? Logger { get; init; }

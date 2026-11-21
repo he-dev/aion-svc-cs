@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -16,17 +18,34 @@ public class LoadWorkflowConfigDefault
     ValidateWorkflowConfigDefault validateWorkflowConfigDefault
 )
 {
+    private static readonly IImmutableList<string> Extensions = [".json", ".yaml", ".yml"];
+
     public async Task<WorkflowConfigDefault> FromFileOrEmpty(WorkflowPath workflowPath)
     {
-        var profile = WorkflowConfigDefault.Empty;
+        var configDefault = WorkflowConfigDefault.Empty;
         var file = new FileInfo(workflowPath);
         for (var dir = file.Directory; dir != null; dir = dir.Parent)
         {
-            var profilePath = Path.Join(dir.FullName, ".profile.json");
-            if (await FromJsonOrNull(profilePath) is { } current)
+            var configPaths =
+                Extensions
+                    .Select(ext => Path.Join(dir.FullName, $"{WorkflowConfigDefault.FileName}{ext}"))
+                    .Where(File.Exists)
+                    .ToList();
+
+            switch (configPaths)
             {
-                logger.Internal.LogDebug("Merging logger-profile with '{profile.path}'.", profilePath);
-                profile += current;
+                case { Count: 0 }:
+                    logger.Baseline.LogDebug("Workflow config default '{workflow.config.name}' does not exist.");
+                    break;
+
+                case { Count: 1 }:
+                    configDefault += await FromJsonOrNull(configPaths[0]) ?? await FromYamlOrNull(configPaths[0]) ?? WorkflowConfigDefault.Empty;
+                    break;
+
+                // note: Too many files.
+                default:
+                    logger.Baseline.LogError("Workflow config default '{workflow.config.name}' is ambiguous. Only one file extension is supported.");
+                    break;
             }
 
             // core: Stop searching when we reach the scheduler-home.
@@ -36,23 +55,30 @@ public class LoadWorkflowConfigDefault
             }
         }
 
-        return profile;
+        if (!validateWorkflowConfigDefault.That(configDefault))
+        {
+            return WorkflowConfigDefault.Empty;
+        }
+
+        return configDefault;
     }
 
-    private async Task<WorkflowConfigDefault?> FromJsonOrNull(string profilePath)
+    private async Task<WorkflowConfigDefault?> FromJsonOrNull(string configDefaultPath)
     {
-        using var scope = logger.BeginScopeWith(("workflow.profile.name", Path.GetFileNameWithoutExtension(profilePath)));
-
-        if (!File.Exists(profilePath))
+        switch (Path.GetExtension(configDefaultPath).ToLowerInvariant())
         {
-            logger.Baseline.LogError("Workflow profile '{workflow.profile.name}' does not exist.");
-            return null;
+            case ".json":
+                // core: This extension is supported.
+                break;
+            default:
+                logger.Internal.LogDebug("Workflow config '{workflow.config.path}' is not a JSON file.", configDefaultPath);
+                return null;
         }
 
         try
         {
-            await using var fileStream = new FileStream(profilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var configDefault = await JsonSerializer.DeserializeAsync<Data.Configs.WorkflowConfigDefault>(fileStream, new JsonSerializerOptions
+            await using var fileStream = new FileStream(configDefaultPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return await JsonSerializer.DeserializeAsync<WorkflowConfigDefault>(fileStream, new JsonSerializerOptions
             {
                 ReadCommentHandling = JsonCommentHandling.Skip,
                 PropertyNameCaseInsensitive = true,
@@ -62,23 +88,41 @@ public class LoadWorkflowConfigDefault
                     new JsonStringEnumConverter()
                 }
             });
-
-            if (configDefault is null)
-            {
-                logger.Baseline.LogError("Workflow profile '{workflow.profile.name}' is empty.");
-                return null;
-            }
-
-            if (!validateWorkflowConfigDefault.That(configDefault))
-            {
-                return null;
-            }
-
-            return configDefault;
         }
         catch (Exception e)
         {
-            logger.Internal.LogError(e, "Workflow profile '{workflow.profile.name}' fails to deserialize as workflow-profile.");
+            logger.Internal.LogError(e, "Workflow config default '{workflow.config.path}' fails to load.", configDefaultPath);
+        }
+
+        return null;
+    }
+
+    private async Task<WorkflowConfigDefault?> FromYamlOrNull(string configDefaultPath)
+    {
+        switch (Path.GetExtension(configDefaultPath).ToLowerInvariant())
+        {
+            case ".yaml" or ".yml":
+                // core: This extension is supported.
+                break;
+            default:
+                logger.Internal.LogDebug("Workflow config '{workflow.config.path}' is not a YAML file.", configDefaultPath);
+                return null;
+        }
+
+        try
+        {
+            var contents = await File.ReadAllTextAsync(configDefaultPath);
+            var deserializer =
+                new YamlDotNet
+                        .Serialization
+                        .DeserializerBuilder()
+                    .WithCaseInsensitivePropertyMatching()
+                    .Build();
+            return deserializer.Deserialize<WorkflowConfigDefault>(contents);
+        }
+        catch (Exception e)
+        {
+            logger.Internal.LogError(e, "Workflow config default '{workflow.config.path}' fails to load.", configDefaultPath);
             return null;
         }
     }

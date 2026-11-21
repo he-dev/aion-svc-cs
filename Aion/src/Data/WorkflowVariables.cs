@@ -1,4 +1,5 @@
 ﻿using System.Collections.Immutable;
+using System.Diagnostics;
 using Aion.Data.Templating;
 using Aion.Util;
 
@@ -12,6 +13,10 @@ public class SchedulerVariableGroup : PropertyScriptObject, IVariableGroup
 
 public class WorkflowVariableGroup : PropertyScriptObject, IVariableGroup
 {
+    public required WorkflowMode Mode { get; init; }
+    public string? TraceId => Activity.Current?.TraceId.ToString();
+    public string? ParentSpanId =>  Activity.Current?.ParentSpanId.ToString();
+
     public WorkflowVariableGroup(IImmutableDictionary<string, string> variables)
     {
         foreach (var (key, value) in variables)
@@ -28,11 +33,4 @@ public class StepVariableGroup : PropertyScriptObject, IVariableGroup
 {
     public string? Name { get; init; }
     public required int Index { get; init; }
-}
-
-public class ExecutionVariableGroup : PropertyScriptObject, IVariableGroup
-{
-    public required WorkflowTriggerSource Source { get; init; }
-    public required string TraceId { get; init; }
-    public required string ParentSpanId { get; init; }
 }

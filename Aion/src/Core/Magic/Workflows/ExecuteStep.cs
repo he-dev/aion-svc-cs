@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Diagnostics;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,26 +18,31 @@ public class ExecuteStep
     StartProcess startProcess
 )
 {
-    public async Task<bool> AsProcess(StepSpec stepSpec, WorkflowTriggerSource source, CancellationToken cancellationToken = default)
+    public async Task<bool> AsProcess(StepSpec step, WorkflowMode source, ImmutableList<IVariableGroup> variables, CancellationToken cancellationToken = default)
     {
         using var about = logger.Baseline.BeginScopeAbout<ExecuteStep>
         ([
-            ("workflow.step.index", stepSpec.Index),
-            ("workflow.step.name", stepSpec.Name)
+            ("workflow.step.index", step.Index),
+            ("workflow.step.name", step.Name)
         ]);
+
+        variables = variables.Add(new StepVariableGroup
+        {
+            Index = step.Index,
+            Name = step.Name
+        });
 
         try
         {
             about.Zero.LogDebug(null);
 
-            var activity = Activity.Current!;
             var exitCode = await startProcess.Invoke
             (
-                stepSpec.FileName,
-                stepSpec.Arguments(source, activity.TraceId.ToString(), activity.ParentSpanId.ToString()).Join(" "),
-                stepSpec.WorkingDirectory,
-                stepSpec.Environment.ToDictionary(),
-                stepSpec.Timeout,
+                step.FileName.Render(variables),
+                step.Arguments.Select(arg => arg.Render(variables)).Join(" "),
+                step.WorkingDirectory,
+                step.Environment.ToDictionary(x => x.Key, x => x.Value.Render(variables)),
+                step.Timeout,
                 cancellationToken
             );
 

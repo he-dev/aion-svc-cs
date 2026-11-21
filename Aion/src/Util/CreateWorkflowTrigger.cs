@@ -9,12 +9,12 @@ public static class CreateWorkflowTrigger
     public static ITrigger Create
     (
         WorkflowPath workflowPath,
-        WorkflowTriggerSource workflowTriggerSource,
+        WorkflowMode workflowMode,
         Action<TriggerBuilder<IJob>> configure
     )
     {
         // core: Cron and User triggers are different triggers.
-        var jobName = $"{workflowPath.Name}@{workflowTriggerSource}";
+        var jobName = $"{workflowPath.Name}@{workflowMode}";
         var jobGroup = "workflows";
 
         var builder =
@@ -25,7 +25,7 @@ public static class CreateWorkflowTrigger
                 .UsingJobData(new JobDataMap
                 {
                     { nameof(WorkflowPath), workflowPath },
-                    { nameof(WorkflowTriggerSource), workflowTriggerSource }
+                    { nameof(WorkflowMode), workflowMode }
                 });
         configure(builder);
         return builder.Build();

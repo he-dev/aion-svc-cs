@@ -1,6 +1,6 @@
 ﻿namespace Aion.Data;
 
-public enum WorkflowTriggerSource
+public enum WorkflowMode
 {
     Job,
     Cli,

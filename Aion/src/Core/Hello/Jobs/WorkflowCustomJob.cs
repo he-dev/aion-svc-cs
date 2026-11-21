@@ -27,7 +27,7 @@ public class WorkflowCustomJob
         ([
             ("job.key", context.JobDetail.Key),
             ("@workflow.name", workflowPath),
-            ("workflow.trigger.source", WorkflowTriggerSource.Cli)
+            ("workflow.trigger.source", WorkflowMode.Cli)
         ]);
 
         scope.Zero.Internal.LogDebug("Job '{job.key}' is executing.");
@@ -36,7 +36,7 @@ public class WorkflowCustomJob
         {
             if (await loadWorkflowSpec.FromFile(workflowPath) is { } workflow)
             {
-                await executeWorkflow.Invoke(workflow, WorkflowTriggerSource.Cli, workflowSteps, cancellationToken);
+                await executeWorkflow.Invoke(workflow, WorkflowMode.Cli, workflowSteps, cancellationToken);
             }
         }
         catch (OperationCanceledException)

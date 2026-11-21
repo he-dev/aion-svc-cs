@@ -13,7 +13,7 @@ public class CreateWorkflowTriggerTest
         var trigger = CreateWorkflowTrigger.Create
         (
             new WorkflowPath("C:/path/to/workflows", "some/workflow.json"),
-            WorkflowTriggerSource.Job,
+            WorkflowMode.Job,
             builder => builder.WithCronSchedule("0/5 * * * * ?")
         );
         var cron = Assert.IsAssignableFrom<ICronTrigger>(trigger);

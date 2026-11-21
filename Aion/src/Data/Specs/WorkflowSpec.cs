@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Immutable;
+using Aion.Data.Templating;
 using Quartz;
 
 namespace Aion.Data.Specs;
-
-public delegate IImmutableList<string> RenderArguments(WorkflowTriggerSource source, string traceId, string parentSpanId);
 
 public record WorkflowSpec
 {
@@ -12,10 +11,9 @@ public record WorkflowSpec
 
     public required bool Enabled { get; init; }
 
-    // core: Use a trigger that is always in the past to satisfy the null-object pattern and keep it harmless.
     public required ITrigger Trigger { get; init; }
 
-    public required IImmutableDictionary<string, string> Variables { get; init; }
+    public required IImmutableDictionary<string, TemplateString> Variables { get; init; }
 
     public required IImmutableList<StepSpec> Steps { get; init; }
 
@@ -30,14 +28,13 @@ public record StepSpec
 
     public string? Name { get; init; }
 
-    public required string FileName { get; init; }
+    public required TemplateString FileName { get; init; }
 
-    // note: Arguments can pass runtime values such as activity ids, so this property must be lazy.
-    public required RenderArguments Arguments { get; init; }
+    public required IImmutableList<TemplateString> Arguments { get; init; }
 
-    public required IImmutableDictionary<string, string> Environment { get; init; }
+    public required IImmutableDictionary<string, TemplateString> Environment { get; init; }
 
-    public required string WorkingDirectory { get; init; }
+    public required string WorkingDirectory { get; init; } = string.Empty;
 
     public required TimeSpan Timeout { get; init; }
 }
