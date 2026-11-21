@@ -3,7 +3,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Aion.Core.Magic.Downtimes;
 using Aion.Data;
-using Aion.Util;
 using Aion.Util.Mvc;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

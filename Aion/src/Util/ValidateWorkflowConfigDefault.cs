@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using Aion.Data;
+﻿using Aion.Data.Configs;
 using Aion.Data.Scheduler;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -7,18 +6,18 @@ using Wiretap.Core;
 
 namespace Aion.Util;
 
-public class ValidateWorkflowProfile
+public class ValidateWorkflowConfigDefault
 (
-    ILogger<ValidateWorkflowProfile> logger,
+    ILogger<ValidateWorkflowConfigDefault> logger,
     IOptions<SchedulerOptions> schedulerOptions
 )
 {
-    public bool That(WorkflowProfileJson profile)
+    public bool That(WorkflowConfigDefault workflowConfigDefault)
     {
         var isValid = true;
-        if (profile.Variables is not null)
+        if (workflowConfigDefault.Variables is not null)
         {
-            foreach (var (key, value) in profile.Variables)
+            foreach (var (key, value) in workflowConfigDefault.Variables)
             {
                 if (string.IsNullOrWhiteSpace(value))
                 {
@@ -28,13 +27,13 @@ public class ValidateWorkflowProfile
             }
         }
 
-        if (profile.Logger is not null)
+        if (workflowConfigDefault.Logger is not null)
         {
-            var loggersPath = System.IO.Path.Join(schedulerOptions.Value.Home, "loggers", $"{profile.Logger}.json");
+            var loggersPath = System.IO.Path.Join(schedulerOptions.Value.Home, "loggers", $"{workflowConfigDefault.Logger}.json");
 
             if (!System.IO.File.Exists(loggersPath))
             {
-                logger.Baseline.LogError("Workflow profile issue: {workflow.profile.issue}.", $"Logger '{profile.Logger}' does not exist.");
+                logger.Baseline.LogError("Workflow profile issue: {workflow.profile.issue}.", $"Logger '{workflowConfigDefault.Logger}' does not exist.");
                 isValid = false;
             }
         }

@@ -7,7 +7,6 @@ using Aion.Util.Quartz;
 using Aion.Util.Serilog;
 using Microsoft.Extensions.Logging;
 using Quartz;
-using Wiretap.Data;
 
 namespace Aion.Util;
 
@@ -16,7 +15,7 @@ public class CreateWorkflowSummary
     ILogger<CreateWorkflowSummary> logger,
     ForkLogging forkLogging,
     FindWorkflows findWorkflows,
-    LoadWorkflow loadWorkflow
+    LoadWorkflowSpec loadWorkflowSpec
 )
 {
     public async Task<object> Where(WorkflowPattern workflowPattern)
@@ -31,12 +30,12 @@ public class CreateWorkflowSummary
             var inMemoryFork = new InMemoryFork();
             using var unsubscribe = forkLogging.Into(inMemoryFork);
 
-            if (await loadWorkflow.FromFile(workflowPath) is { } workflow)
+            if (await loadWorkflowSpec.FromFile(workflowPath) is { } workflow)
             {
                 var next = workflow.Trigger.FiresAt(utcNow).Take(3).Select(x => x.ToLocalTime());
                 summaries = summaries.Add(new
                 {
-                    path = workflow.Spec.Path.Relative,
+                    path = workflow.Path.Relative,
                     isOn = workflow.Enabled,
                     cron = ((ICronTrigger)workflow.Trigger).CronExpressionString,
                     next = next,

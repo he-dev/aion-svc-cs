@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Immutable;
-using System.IO;
 using System.Linq;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Aion.Data;
+using Aion.Data.Configs;
+using Aion.Data.Scheduler;
+using Aion.Data.Specs;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Quartz;
 using Wiretap.Core;
 
 namespace Aion.Util;
@@ -14,120 +16,113 @@ namespace Aion.Util;
 public class LoadWorkflowSpec
 (
     ILogger<LoadWorkflowSpec> logger,
-    ValidateWorkflowFile validateWorkflowFile
+    IOptions<SchedulerOptions> schedulerOptions,
+    LoadWorkflowConfig loadWorkflowConfig,
+
+    LoadLoggingPreset loadLoggingPreset
 )
 {
-    public async Task<WorkflowSpec?> FromFileOrNull(WorkflowPath workflowPath)
+    public async Task<WorkflowSpec?> FromFile(WorkflowPath workflowPath)
     {
-        using var about = logger.Baseline.BeginScopeAbout<LoadWorkflowSpec>
-        ([
-            ("@workflow.name", workflowPath)
-        ]);
-        about.Zero.Internal.LogDebug(null);
+        using var about = logger.Internal.BeginScopeAbout<LoadWorkflowSpec>([("@workflow.name", workflowPath)]);
+        about.Zero.LogDebug("Loading workflow '{@workflow.name}'.", workflowPath);
 
-        if (!File.Exists(workflowPath))
+        var config = await loadWorkflowConfig.FromFileOrNull(workflowPath);
+
+        if (config is null)
         {
-            about.LogError("Workflow spec '{@workflow.name}' does not exist.");
+            about.Last.LogError("Cannot load workflow '{@workflow.name}' because there is no spec.");
             return null;
         }
 
-        var data = workflowPath.Extension.ToLowerInvariant() switch
+        // meta: Create a partial workflow first so that we can use the Mode property for variables.
+        var workflow = new WorkflowSpec
         {
-            ".json" => await FromJsonOrNull(workflowPath),
-            ".yaml" or ".yml" => await FromYamlOrNull(workflowPath),
-            _ => throw new NotSupportedException($"Extension '{workflowPath.Extension}' is not supported.")
+            Path = workflowPath,
+            Trigger = CreateWorkflowTrigger.Create(workflowPath, WorkflowTriggerSource.Job, builder => builder.WithCronSchedule(config.Cron)),
+            Enabled = config.Enabled == true,
+            Variables = config.Variables.ToImmutableDictionary(),
+            Logger = await loadLoggingPreset.FromFromOrDefault(config.Logger, global::Serilog.Core.Logger.None),
+            Steps = []
         };
 
-        if (data is null)
-        {
-            about.Last.LogError("Workflow '{@workflow.name}' is null or empty.");
-            return null;
-        }
-
-        if (!validateWorkflowFile.Invoke(data))
-        {
-            about.Last.LogDebug(null);
-            return null;
-        }
-
-        about.Tick.LogDebug("Workflow '{@workflow.name}' passes validations.");
-
-        try
-        {
-            // note: At this point we know that the file is okay.
-            return new WorkflowSpec
+        var variableGroups = ImmutableList<IVariableGroup>.Empty.AddRange
+        ([
+            new SchedulerVariableGroup
+            {
+                Home = schedulerOptions.Value.Home,
+                Name = schedulerOptions.Value.Name,
+            },
+            new WorkflowVariableGroup(workflow.Variables)
             {
                 Path = workflowPath,
-                Cron = data.Cron!,
-                Disabled = data.Disabled == true,
-                Variables = data.Variables?.ToImmutableDictionary(x => x.Key, x => x.Value!) ?? [],
-                Logger = data.Logger,
-                Steps =
-                [
-                    .. data.Steps!.Select((step, index) => new WorkflowSpec.Step
-                    {
-                        Index = index,
-                        Name = step!.Name,
-                        Disabled = step.Disabled == true,
-                        FileName = step.FileName!,
-                        Arguments = step.Arguments?.Select(x => x!).ToImmutableList() ?? [],
-                        Environment = step.Environment?.ToImmutableDictionary(x => x.Key, x => x.Value!) ?? ImmutableDictionary<string, string>.Empty,
-                        WorkingDirectory = step.WorkingDirectory,
-                        Timeout = step.Timeout ?? System.Threading.Timeout.InfiniteTimeSpan
-                    })
-                ]
-            };
-        }
-        catch (Exception e)
+            }
+        ]);
+
+        var nullSteps =
+            config
+                .Steps
+                .Select((step, i) => CreateStep(step, i, variableGroups))
+                .ToLookup(step => step is null);
+
+        if (nullSteps[true].Any())
         {
-            about.Last.LogError(e, "Workflow spec '{@workflow.name}' does not deserialize.");
+            about.LogError("Cannot use workflow '{@workflow.name}' because it contains {workflow.step.count.invalid} invalid steps.", workflowPath, nullSteps[true].Count());
             return null;
         }
-        finally
+
+        workflow = workflow with
         {
-            about.Last.WhenFirstOnly.LogDebug("Loads workflow spec '{@workflow.name}'.");
-        }
+            Steps = [.. nullSteps[false].Select(s => s!)]
+        };
+
+        return workflow;
     }
 
-    private async Task<WorkflowFile?> FromJsonOrNull(WorkflowPath workflowPath)
+    private StepSpec? CreateStep
+    (
+        StepConfig config,
+        int index,
+        IImmutableList<IVariableGroup> variables
+    )
     {
+        variables = variables.Add(new StepVariableGroup
+        {
+            Index = index,
+            Name = config.Name
+        });
+
         try
         {
-            await using var fileStream = new FileStream(workflowPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return await JsonSerializer.DeserializeAsync<WorkflowFile>(fileStream, new JsonSerializerOptions
+            var step = new StepSpec
             {
-                ReadCommentHandling = JsonCommentHandling.Skip,
-                PropertyNameCaseInsensitive = true,
-                AllowTrailingCommas = true,
-                Converters =
+                Index = index,
+                Name = config.Name,
+                Enabled = config.Enabled,
+                FileName = config.FileName.Render(variables),
+                Arguments = (source, traceId, parentSpanId) =>
                 {
-                    new JsonStringEnumConverter()
-                }
-            });
-        }
-        catch (Exception e)
-        {
-            logger.Snap<LoadWorkflowSpec>().Internal.LogError(e, "Workflow '{@workflow.name}' fails to load.",  workflowPath);
-            return null;
-        }
-    }
+                    var local = variables.Add(new ExecutionVariableGroup
+                    {
+                        Source = source,
+                        TraceId = traceId,
+                        ParentSpanId = parentSpanId
+                    });
+                    return [.. config.Arguments.Select(argument => argument.Render(local))];
+                },
+                Environment = config.Environment.ToImmutableDictionary(x => x.Key, x => x.Value.Render(variables)),
+                WorkingDirectory = (config.WorkingDirectory ?? string.Empty).Render(variables),
+                Timeout = config.Timeout,
+            };
 
-    private async Task<WorkflowFile?> FromYamlOrNull(WorkflowPath workflowPath)
-    {
-        try
-        {
-            var contents = await File.ReadAllTextAsync(workflowPath);
-            var deserializer =
-                new YamlDotNet
-                        .Serialization
-                        .DeserializerBuilder()
-                    .WithCaseInsensitivePropertyMatching()
-                    .Build();
-            return deserializer.Deserialize<WorkflowFile>(contents);
+            // core: Execute arguments with a random trace ID to ensure that it works.
+            //step.Arguments(ActivityTraceId.CreateRandom().ToString());
+
+            return step;
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
-            logger.Snap<LoadWorkflowSpec>().Internal.LogError(e, "Workflow '{@workflow.name}' fails to load.",  workflowPath);
+            logger.Internal.LogError(ex, "Cannot create step {workflow.step.index} because: {workflow.step.exception:l}.", index, ex.Message);
             return null;
         }
     }

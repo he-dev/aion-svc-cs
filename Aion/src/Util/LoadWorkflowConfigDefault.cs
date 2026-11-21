@@ -1,25 +1,24 @@
 ﻿using System;
-using System.Collections.Immutable;
 using System.IO;
-using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Aion.Data;
+using Aion.Data.Configs;
 using Microsoft.Extensions.Logging;
 using Wiretap.Core;
 
 namespace Aion.Util;
 
-public class LoadWorkflowProfile
+public class LoadWorkflowConfigDefault
 (
-    ILogger<LoadWorkflowProfile> logger,
-    ValidateWorkflowProfile validateWorkflowProfile
+    ILogger<LoadWorkflowConfigDefault> logger,
+    ValidateWorkflowConfigDefault validateWorkflowConfigDefault
 )
 {
-    public async Task<WorkflowProfile> FromJsonOrEmpty(WorkflowPath workflowPath)
+    public async Task<WorkflowConfigDefault> FromFileOrEmpty(WorkflowPath workflowPath)
     {
-        var profile = WorkflowProfile.Empty;
+        var profile = WorkflowConfigDefault.Empty;
         var file = new FileInfo(workflowPath);
         for (var dir = file.Directory; dir != null; dir = dir.Parent)
         {
@@ -40,7 +39,7 @@ public class LoadWorkflowProfile
         return profile;
     }
 
-    private async Task<WorkflowProfile?> FromJsonOrNull(string profilePath)
+    private async Task<WorkflowConfigDefault?> FromJsonOrNull(string profilePath)
     {
         using var scope = logger.BeginScopeWith(("workflow.profile.name", Path.GetFileNameWithoutExtension(profilePath)));
 
@@ -53,7 +52,7 @@ public class LoadWorkflowProfile
         try
         {
             await using var fileStream = new FileStream(profilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var profile = await JsonSerializer.DeserializeAsync<WorkflowProfileJson>(fileStream, new JsonSerializerOptions
+            var configDefault = await JsonSerializer.DeserializeAsync<Data.Configs.WorkflowConfigDefault>(fileStream, new JsonSerializerOptions
             {
                 ReadCommentHandling = JsonCommentHandling.Skip,
                 PropertyNameCaseInsensitive = true,
@@ -64,22 +63,18 @@ public class LoadWorkflowProfile
                 }
             });
 
-            if (profile is null)
+            if (configDefault is null)
             {
                 logger.Baseline.LogError("Workflow profile '{workflow.profile.name}' is empty.");
                 return null;
             }
 
-            if (!validateWorkflowProfile.That(profile))
+            if (!validateWorkflowConfigDefault.That(configDefault))
             {
                 return null;
             }
 
-            return new WorkflowProfile
-            {
-                Variables = profile.Variables?.ToImmutableDictionary(x => x.Key, x => x.Value!) ?? ImmutableDictionary<string, string>.Empty,
-                Logger = profile.Logger
-            };
+            return configDefault;
         }
         catch (Exception e)
         {

@@ -1,6 +1,7 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
 using Aion.Data;
+using Aion.Data.Configs;
 using Aion.Util;
 using Aion.Util.Serilog;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,14 +10,14 @@ using Xunit;
 
 namespace Aion.Tests.Util;
 
-public class ValidateWorkflowProfileTest(TestWebApplication testApp) : IClassFixture<TestWebApplication>
+public class ValidateWorkflowConfigDefaultTest(TestWebApplication testApp) : IClassFixture<TestWebApplication>
 {
     [Fact]
     public void EmptyProfileIsValid()
     {
         using var scope = testApp.Services.CreateScope();
-        var validateWorkflowProfile = scope.ServiceProvider.GetRequiredService<ValidateWorkflowProfile>();
-        var profile = new WorkflowProfileJson();
+        var validateWorkflowProfile = scope.ServiceProvider.GetRequiredService<ValidateWorkflowConfigDefault>();
+        var profile = new WorkflowConfigDefault();
         Assert.True(validateWorkflowProfile.That(profile));
     }
 
@@ -24,9 +25,9 @@ public class ValidateWorkflowProfileTest(TestWebApplication testApp) : IClassFix
     public void ExistingLoggerIsValid()
     {
         using var scope = testApp.Services.CreateScope();
-        var validateWorkflowProfile = scope.ServiceProvider.GetRequiredService<ValidateWorkflowProfile>();
+        var validateWorkflowProfile = scope.ServiceProvider.GetRequiredService<ValidateWorkflowConfigDefault>();
 
-        var profile = new WorkflowProfileJson { Logger = "file-28-days" };
+        var profile = new WorkflowConfigDefault { Logger = "file-28-days" };
         Assert.True(validateWorkflowProfile.That(profile));
     }
 
@@ -35,13 +36,13 @@ public class ValidateWorkflowProfileTest(TestWebApplication testApp) : IClassFix
     {
         using var scope = testApp.Services.CreateScope();
         var forkLogging = scope.ServiceProvider.GetRequiredService<ForkLogging>();
-        var validateWorkflowProfile = scope.ServiceProvider.GetRequiredService<ValidateWorkflowProfile>();
+        var validateWorkflowProfile = scope.ServiceProvider.GetRequiredService<ValidateWorkflowConfigDefault>();
 
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = forkLogging.Into(inMemoryFork);
 
         // test: This logger does not exist.
-        var profile = new WorkflowProfileJson { Logger = "fake-28-days" };
+        var profile = new WorkflowConfigDefault { Logger = "fake-28-days" };
         Assert.False(validateWorkflowProfile.That(profile));
 
         var errors = inMemoryFork.AtLeast(LogLevel.Error).ToList();

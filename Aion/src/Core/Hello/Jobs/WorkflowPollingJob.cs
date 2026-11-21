@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Aion.Core.Magic.Workflows;
 using Aion.Data;
-using Aion.Util;
 using Microsoft.Extensions.Logging;
 using Quartz;
 using Wiretap.Core;

@@ -14,7 +14,7 @@ namespace Aion.Core.Hello.Jobs;
 public class WorkflowCustomJob
 (
     ILogger<WorkflowRegularJob> logger,
-    LoadWorkflow loadWorkflow,
+    LoadWorkflowSpec loadWorkflowSpec,
     ExecuteWorkflow executeWorkflow
 ) : IJob
 {
@@ -34,7 +34,7 @@ public class WorkflowCustomJob
 
         try
         {
-            if (await loadWorkflow.FromFile(workflowPath) is { } workflow)
+            if (await loadWorkflowSpec.FromFile(workflowPath) is { } workflow)
             {
                 await executeWorkflow.Invoke(workflow, WorkflowTriggerSource.Cli, workflowSteps, cancellationToken);
             }

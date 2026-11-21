@@ -1,10 +1,10 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Aion.Data;
+using Aion.Data.Specs;
 using Aion.Util.Serilog;
 using Microsoft.Extensions.Logging;
 using Wiretap.Core;
@@ -18,12 +18,12 @@ public class ExecuteWorkflow
     ExecuteStep executeStep
 )
 {
-    public async Task Invoke(Workflow workflow, WorkflowTriggerSource source, IImmutableList<string> steps, CancellationToken cancellationToken = default)
+    public async Task Invoke(WorkflowSpec workflowSpec, WorkflowTriggerSource source, IImmutableList<string> steps, CancellationToken cancellationToken = default)
     {
-        using var loggerBug = forkLogging.Into(new LoggerFork(workflow.Logger));
+        using var loggerBug = forkLogging.Into(new LoggerFork(workflowSpec.Logger));
         using var about = logger.Baseline.BeginScopeAbout<ExecuteWorkflow>
         ([
-            ("@workflow.name", workflow.Spec.Path),
+            ("@workflow.name", workflowSpec.Path),
             ("workflow.trigger.source", source)
         ]);
 
@@ -37,7 +37,7 @@ public class ExecuteWorkflow
 
                 foreach (var name in steps)
                 {
-                    if (workflow.Steps.SingleOrDefault(s => name.Equals(s.Name, StringComparison.InvariantCultureIgnoreCase)) is { } step)
+                    if (workflowSpec.Steps.SingleOrDefault(s => name.Equals(s.Name, StringComparison.InvariantCultureIgnoreCase)) is { } step)
                     {
                         await executeStep.AsProcess(step, source, cancellationToken);
                     }
@@ -51,7 +51,7 @@ public class ExecuteWorkflow
             {
                 about.Tick.LogInformation("Executing default steps.");
 
-                foreach (var step in workflow.Steps)
+                foreach (var step in workflowSpec.Steps)
                 {
                     if (step.Enabled)
                     {

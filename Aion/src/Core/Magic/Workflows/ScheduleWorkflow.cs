@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Threading.Tasks;
 using Aion.Core.Hello.Jobs;
 using Aion.Data;
+using Aion.Data.Specs;
 using Aion.Util;
 using Microsoft.Extensions.Logging;
 using Quartz;
@@ -15,7 +16,7 @@ public class ScheduleWorkflow
     ILogger<ScheduleWorkflow> logger,
     ISchedulerFactory schedulerFactory,
     FindWorkflows findWorkflows,
-    LoadWorkflow loadWorkflow
+    LoadWorkflowSpec loadWorkflowSpec
 )
 {
     // https://www.quartz-scheduler.net/documentation/quartz-3.x/quick-start.html
@@ -24,7 +25,7 @@ public class ScheduleWorkflow
     {
         foreach (var workflowPath in findWorkflows.Where(workflowPattern))
         {
-            if (await loadWorkflow.FromFile(workflowPath) is { } workflow)
+            if (await loadWorkflowSpec.FromFile(workflowPath) is { } workflow)
             {
                 await AsCron(workflow);
             }
@@ -38,17 +39,17 @@ public class ScheduleWorkflow
         }
     }
 
-    private async Task AsCron(Workflow workflow)
+    private async Task AsCron(WorkflowSpec workflowSpec)
     {
         var scheduler = await schedulerFactory.GetScheduler();
 
         using var about = logger.Baseline.BeginScopeAbout<ScheduleWorkflow>
         ([
-            ("@workflow.name", workflow.Spec.Path),
+            ("@workflow.name", workflowSpec.Path),
         ]);
         about.Zero.Internal.LogDebug(null);
 
-        if (workflow.Trigger is not ICronTrigger cronTrigger)
+        if (workflowSpec.Trigger is not ICronTrigger cronTrigger)
         {
             about.Last.LogError("Skips workflow '{@workflow.name}' because its trigger is not cron.");
             return;
@@ -71,7 +72,7 @@ public class ScheduleWorkflow
                     about.Last.LogInformation
                     (
                         "Reschedules workflow '{@workflow.name}' to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.",
-                        workflow.Spec.Path,
+                        workflowSpec.Path,
                         cronTrigger.CronExpressionString,
                         next
                     );
@@ -95,7 +96,7 @@ public class ScheduleWorkflow
             about.Last.LogInformation
             (
                 "Schedules workflow '{@workflow.name}' to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.",
-                workflow.Spec.Path,
+                workflowSpec.Path,
                 cronTrigger.CronExpressionString,
                 next
             );
@@ -113,7 +114,7 @@ public class ScheduleWorkflow
                     .WithSimpleSchedule(x => x.WithRepeatCount(0));
             });
 
-            if (await loadWorkflow.FromFile(workflowPath) is { } workflow)
+            if (await loadWorkflowSpec.FromFile(workflowPath) is { } workflow)
             {
                 await AsOnce(workflow, trigger, [.. workflowOverride.Steps]);
             }
@@ -124,11 +125,11 @@ public class ScheduleWorkflow
         }
     }
 
-    private async Task AsOnce(Workflow workflow, ITrigger trigger, IImmutableList<string> steps)
+    private async Task AsOnce(WorkflowSpec workflowSpec, ITrigger trigger, IImmutableList<string> steps)
     {
         using var about = logger.Baseline.BeginScopeAbout<ScheduleWorkflow>
         ([
-            ("@workflow.name", workflow.Spec.Path),
+            ("@workflow.name", workflowSpec.Path),
         ]);
         about.Zero.Internal.LogDebug(null);
 
@@ -141,7 +142,7 @@ public class ScheduleWorkflow
                 about.Last.LogInformation
                 (
                     "Reschedules {@workflow.name}. Next execution at '{workflow.trigger.next}'.",
-                    workflow.Spec.Path,
+                    workflowSpec.Path,
                     next
                 );
             }
@@ -155,16 +156,16 @@ public class ScheduleWorkflow
             var jobDetail =
                 JobBuilder
                     .Create<WorkflowCustomJob>()
-                    .WithIdentity(workflow.Trigger.JobKey)
-                    .UsingJobData(JobDataKeys.WorkflowPath, workflow.Spec.Path)
+                    .WithIdentity(workflowSpec.Trigger.JobKey)
+                    .UsingJobData(JobDataKeys.WorkflowPath, workflowSpec.Path)
                     .UsingJobData(JobDataKeys.WorkflowSteps, steps)
                     .DisallowConcurrentExecution()
                     .Build();
 
-            var nextNew = await scheduler.ScheduleJob(jobDetail, workflow.Trigger);
+            var nextNew = await scheduler.ScheduleJob(jobDetail, workflowSpec.Trigger);
             about.Last.LogInformation(
                 "Schedules workflows '{@workflow.name}'. Next execution at '{workflow.trigger.next}'.",
-                workflow.Spec.Path,
+                workflowSpec.Path,
                 nextNew
             );
         }

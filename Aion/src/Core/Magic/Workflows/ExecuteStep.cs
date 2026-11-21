@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Aion.Data;
+using Aion.Data.Specs;
 using Aion.Util;
 using Aion.Util.Dotnet;
 using Microsoft.Extensions.Logging;
@@ -17,12 +18,12 @@ public class ExecuteStep
     StartProcess startProcess
 )
 {
-    public async Task<bool> AsProcess(Workflow.Step step, WorkflowTriggerSource source, CancellationToken cancellationToken = default)
+    public async Task<bool> AsProcess(StepSpec stepSpec, WorkflowTriggerSource source, CancellationToken cancellationToken = default)
     {
         using var about = logger.Baseline.BeginScopeAbout<ExecuteStep>
         ([
-            ("workflow.step.index", step.Spec.Index),
-            ("workflow.step.name", step.Name)
+            ("workflow.step.index", stepSpec.Index),
+            ("workflow.step.name", stepSpec.Name)
         ]);
 
         try
@@ -32,11 +33,11 @@ public class ExecuteStep
             var activity = Activity.Current!;
             var exitCode = await startProcess.Invoke
             (
-                step.FileName,
-                step.Arguments(source, activity.TraceId.ToString(), activity.ParentSpanId.ToString()).Join(" "),
-                step.WorkingDirectory,
-                step.Environment.ToDictionary(),
-                step.Timeout,
+                stepSpec.FileName,
+                stepSpec.Arguments(source, activity.TraceId.ToString(), activity.ParentSpanId.ToString()).Join(" "),
+                stepSpec.WorkingDirectory,
+                stepSpec.Environment.ToDictionary(),
+                stepSpec.Timeout,
                 cancellationToken
             );
 

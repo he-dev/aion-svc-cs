@@ -72,16 +72,16 @@ builder.Services.AddSingleton(x => x.GetRequiredService<IHostEnvironment>().Cont
 builder.Services.AddScoped<WorkflowRegularJob>();
 builder.Services.AddScoped<WorkflowPollingJob>();
 
-builder.Services.AddScoped<ValidateWorkflowProfile>();
-builder.Services.AddScoped<ValidateWorkflowFile>();
+builder.Services.AddScoped<ValidateWorkflowConfig>();
+builder.Services.AddScoped<ValidateWorkflowConfigDefault>();
 builder.Services.AddScoped<FindWorkflows>();
-builder.Services.AddScoped<LoadWorkflow>();
-builder.Services.AddScoped<LoadWorkflowProfile>();
-builder.Services.AddScoped<LoadLoggingPreset>();
-builder.Services.AddScoped<LoadLoggingPreset>();
-builder.Services.AddScoped<LoadWorkflowProfile>();
 builder.Services.AddScoped<LoadWorkflowSpec>();
-builder.Services.AddScoped<LoadWorkflow>();
+builder.Services.AddScoped<LoadWorkflowConfigDefault>();
+builder.Services.AddScoped<LoadLoggingPreset>();
+builder.Services.AddScoped<LoadLoggingPreset>();
+builder.Services.AddScoped<LoadWorkflowConfigDefault>();
+builder.Services.AddScoped<LoadWorkflowConfig>();
+builder.Services.AddScoped<LoadWorkflowSpec>();
 builder.Services.AddScoped<ExecuteWorkflow>();
 builder.Services.AddScoped<ExecuteStep>();
 builder.Services.AddScoped<StartProcess>();
