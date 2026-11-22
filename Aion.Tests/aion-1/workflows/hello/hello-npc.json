@@ -1,0 +1,25 @@
+{
+  "Enabled": true,
+  "Cron": "0/5 * * * * ?",
+  "Logger": null,
+  "Steps": [
+    {
+      "Enabled": true,
+      "FileName": "{{ Workflow.NpcExe }}",
+      "Arguments": [
+        "--scheduler {{ Scheduler.Name }}",
+        "--profile {{ Profile.Name }}",
+        "--workflow {{ Workflow.Name }}",
+        "--workflow-mode {{ Workflow.Mode }}",
+        "--step {{ Step.Index }}",
+        "--step-trace-id {{ Step.TraceId }}",
+        "--step-span-id {{ Step.SpanId }}",
+        "--step-parent-id {{ Step.ParentId }}",
+        "--sleep 1"
+      ],
+      "Environment": {
+        "NPC_MODE": "lite"
+      }
+    }
+  ]
+}

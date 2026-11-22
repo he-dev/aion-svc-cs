@@ -49,11 +49,11 @@ public class ScheduleWorkflow
         ]);
         about.Zero.Internal.LogDebug(null);
 
-        if (workflowSpec.Trigger is not ICronTrigger cronTrigger)
-        {
-            about.Last.LogError("Skips workflow '{@workflow.name}' because its trigger is not cron.");
-            return;
-        }
+        var cronTrigger =
+            (ICronTrigger)WorkflowTrigger
+                .UsingJobData(workflowSpec.Path, WorkflowMode.Job)
+                .WithCronSchedule(workflowSpec.Cron)
+                .Build();
 
         about.Tick.LogDebug("Trigger '{workflow.trigger.key}': {workflow.trigger.cron}", cronTrigger.Key, cronTrigger.CronExpressionString);
 
@@ -107,12 +107,13 @@ public class ScheduleWorkflow
     {
         foreach (var workflowPath in findWorkflows.Where(workflowPattern))
         {
-            var trigger = CreateWorkflowTrigger.Create(workflowPath, WorkflowMode.Web, builder =>
-            {
-                builder
+            var trigger =
+                WorkflowTrigger
+                    .UsingJobData(workflowPath, WorkflowMode.Api)
+                    .UsingJobData(nameof(WorkflowOverride), workflowOverride.Steps)
                     .StartAt(workflowOverride.StartAt)
-                    .WithSimpleSchedule(x => x.WithRepeatCount(0));
-            });
+                    .WithSimpleSchedule(x => x.WithRepeatCount(0))
+                    .Build();
 
             if (await loadWorkflowSpec.FromFile(workflowPath) is { } workflow)
             {
@@ -156,13 +157,11 @@ public class ScheduleWorkflow
             var jobDetail =
                 JobBuilder
                     .Create<WorkflowCustomJob>()
-                    .WithIdentity(workflowSpec.Trigger.JobKey)
-                    .UsingJobData(JobDataKeys.WorkflowPath, workflowSpec.Path)
-                    .UsingJobData(JobDataKeys.WorkflowSteps, steps)
+                    .WithIdentity(trigger.JobKey)
                     .DisallowConcurrentExecution()
                     .Build();
 
-            var nextNew = await scheduler.ScheduleJob(jobDetail, workflowSpec.Trigger);
+            var nextNew = await scheduler.ScheduleJob(jobDetail, trigger);
             about.Last.LogInformation(
                 "Schedules workflows '{@workflow.name}'. Next execution at '{workflow.trigger.next}'.",
                 workflowSpec.Path,

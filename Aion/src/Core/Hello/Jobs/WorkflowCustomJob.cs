@@ -20,17 +20,18 @@ public class WorkflowCustomJob
 {
     public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var workflowPath = context.Trigger.JobDataMap.Get<WorkflowPath>(JobDataKeys.WorkflowPath);
-        var workflowSteps = context.Trigger.JobDataMap.Get<IImmutableList<string>>(JobDataKeys.WorkflowSteps);
+        var workflowPath = context.Trigger.JobDataMap.Get<WorkflowPath>(nameof(WorkflowPath));
+        var workflowSteps = context.Trigger.JobDataMap.Get<IImmutableList<string>>(nameof(WorkflowOverride));
+        var workflowMode = context.Trigger.JobDataMap.Get<WorkflowMode>(nameof(WorkflowMode));
 
-        using var scope = logger.Internal.BeginScopeAbout<WorkflowCustomJob>
+        using var about = logger.Internal.BeginScopeAbout<WorkflowCustomJob>
         ([
             ("job.key", context.JobDetail.Key),
-            ("@workflow.name", workflowPath),
-            ("workflow.trigger.source", WorkflowMode.Cli)
+            ("workflow.name", workflowPath.Name),
+            ("workflow.mode", workflowMode)
         ]);
 
-        scope.Zero.Internal.LogDebug("Job '{job.key}' is executing.");
+        about.Zero.LogDebug("Job '{job.key}' is executing.");
 
         try
         {
@@ -38,15 +39,17 @@ public class WorkflowCustomJob
             {
                 await executeWorkflow.Invoke(workflow, WorkflowMode.Cli, workflowSteps, cancellationToken);
             }
+
+            about.Last.LogInformation("Job '{job.key}' completes in {activity.duration_ms:N0} ms.");
         }
         catch (OperationCanceledException)
         {
-            scope.Last.Internal.LogError("Job '{job.key}' was canceled.");
+            about.Last.LogError("Job '{job.key}' was canceled after {activity.duration_ms:N0} ms.");
         }
         catch (Exception ex)
         {
             // note: This should never happen.
-            scope.Last.Internal.LogError(ex, "Job '{job.key}' fails.");
+            about.Last.LogError(ex, "Job '{job.key}' fails after {activity.duration_ms:N0} ms.");
             throw new JobExecutionException(ex);
         }
     }

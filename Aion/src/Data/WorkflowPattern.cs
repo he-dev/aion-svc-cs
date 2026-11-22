@@ -8,7 +8,7 @@ namespace Aion.Data;
 
 public record WorkflowPattern(string Value) : IEnumerable<string>
 {
-    public static readonly ImmutableList<string> Extensions = [".json", ".yaml", ".yml"];
+    private static readonly ImmutableList<string> Extensions = [".json", ".yaml", ".yml"];
 
     public static readonly WorkflowPattern Any = new("**/*");
 

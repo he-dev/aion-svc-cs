@@ -121,7 +121,7 @@ public class ValidateWorkflowConfig
             // mhmm?
         }
 
-        if (step.Timeout < TimeSpan.Zero)
+        if (step.Timeout < TimeSpan.Zero && step.Timeout != System.Threading.Timeout.InfiniteTimeSpan)
         {
             about.Tick.LogError("{workflow.property}: {workflow.issue}", WorkflowProperty.Path(x => x.Steps[index].Timeout), "is less than zero");
         }

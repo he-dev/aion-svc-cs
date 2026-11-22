@@ -17,22 +17,22 @@ internal class WorkflowPollingJob
 {
     public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
-        using var scope = logger.Internal.BeginScopeAbout<WorkflowPollingJob>
+        using var about = logger.Internal.BeginScopeAbout<WorkflowPollingJob>
         ([
             ("job.group", context.JobDetail.Key.Group),
             ("job.name", context.JobDetail.Key.Name)
         ]);
 
-        scope.Zero.LogDebug("Executing '{job.group}:{job.name}'.");
+        about.Zero.LogDebug(null);
 
         try
         {
             await scheduleWorkflow.AsCron(WorkflowPattern.Any);
-            scope.Last.LogDebug("Job '{job.group}:{job.name}' completed.");
+            about.Last.LogInformation("Job '{job.key}' completes in {activity.duration_ms:N0} ms.");
         }
         catch (Exception ex)
         {
-            scope.Last.LogError(ex, "Job '{job.group}:{job.name}' failed.");
+            about.Last.LogError(ex, "Job '{job.key}' fails after {activity.duration_ms:N0} ms.");
             throw new JobExecutionException(ex);
         }
     }

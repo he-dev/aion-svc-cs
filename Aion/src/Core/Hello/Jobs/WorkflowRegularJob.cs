@@ -21,16 +21,17 @@ public class WorkflowRegularJob
 {
     public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var workflowPath = context.Trigger.JobDataMap.Get<WorkflowPath>(JobDataKeys.WorkflowPath);
+        var workflowPath = context.Trigger.JobDataMap.Get<WorkflowPath>(nameof(WorkflowPath));
+        var workflowMode = context.Trigger.JobDataMap.Get<WorkflowMode>(nameof(WorkflowMode));
 
         using var about = logger.Internal.BeginScopeAbout<WorkflowRegularJob>
         ([
             ("job.key", context.JobDetail.Key),
-            ("@workflow.name", workflowPath),
-            ("workflow.mode", WorkflowMode.Job)
+            ("workflow.name", workflowPath.Name),
+            ("workflow.mode", workflowMode)
         ]);
 
-        about.Zero.Internal.LogDebug(null);
+        about.Zero.LogDebug(null);
 
         try
         {
@@ -43,15 +44,15 @@ public class WorkflowRegularJob
                 await scheduleWorkflow.Deletion(context.Trigger);
             }
 
-            about.Last.Internal.LogInformation(null);
+            about.Last.LogInformation("Job '{job.key}' completes in {activity.duration_ms:N0} ms.");
         }
         catch (OperationCanceledException)
         {
-            about.Last.Internal.LogError("Job '{job.key}' was canceled.");
+            about.Last.LogError("Job '{job.key}' was canceled after {activity.duration_ms:N0} ms.");
         }
         catch (Exception ex)
         {
-            about.Last.Internal.LogError(ex, "Job '{job.key}' fails.");
+            about.Last.LogError(ex, "Job '{job.key}' fails after {activity.duration_ms:N0} ms.");
             throw new JobExecutionException(ex);
         }
     }

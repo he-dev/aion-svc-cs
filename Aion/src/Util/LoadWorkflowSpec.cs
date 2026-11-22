@@ -34,7 +34,8 @@ public class LoadWorkflowSpec
             return new WorkflowSpec
             {
                 Path = workflowPath,
-                Trigger = CreateWorkflowTrigger.Create(workflowPath, WorkflowMode.Job, builder => builder.WithCronSchedule(config.Cron)),
+                //Trigger = WorkflowTrigger.UsingJobData(workflowPath, WorkflowMode.Job).WithCronSchedule(config.Cron).Build(),
+                Cron =  config.Cron,
                 Enabled = config.Enabled,
                 Variables = config.Variables.ToImmutableDictionary(x => x.Key, x => TemplateString.From(x.Value)),
                 Logger = await loadLoggingPreset.FromFileOrDefault(config.Logger),

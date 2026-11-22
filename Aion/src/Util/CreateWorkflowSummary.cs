@@ -30,16 +30,24 @@ public class CreateWorkflowSummary
             var inMemoryFork = new InMemoryFork();
             using var unsubscribe = forkLogging.Into(inMemoryFork);
 
-            if (await loadWorkflowSpec.FromFile(workflowPath) is { } workflow)
+            if (await loadWorkflowSpec.FromFile(workflowPath) is { } workflowSpec)
             {
-                var next = workflow.Trigger.FiresAt(utcNow).Take(3).Select(x => x.ToLocalTime());
+                var next =
+                    WorkflowTrigger
+                        .UsingJobData(workflowPath, WorkflowMode.Job)
+                        .WithCronSchedule(workflowSpec.Cron)
+                        .Build()
+                        .FiresAt(utcNow)
+                        .Take(3)
+                        .Select(x => x.ToLocalTime());
+
                 summaries = summaries.Add(new
                 {
-                    path = workflow.Path.Relative,
-                    isOn = workflow.Enabled,
-                    cron = ((ICronTrigger)workflow.Trigger).CronExpressionString,
+                    path = workflowSpec.Path.Relative,
+                    isOn = workflowSpec.Enabled,
+                    cron = workflowSpec.Cron,
                     next = next,
-                    steps = workflow.Steps.Count
+                    steps = workflowSpec.Steps.Count
                 });
             }
             else

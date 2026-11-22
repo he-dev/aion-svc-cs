@@ -4,5 +4,5 @@ public enum WorkflowMode
 {
     Job,
     Cli,
-    Web,
+    Api,
 }

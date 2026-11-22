@@ -12,7 +12,9 @@ public record WorkflowSpec
 
     public required bool Enabled { get; init; }
 
-    public required ITrigger Trigger { get; init; }
+    public required string Cron { get; init; }
+
+    //public required ITrigger Trigger { get; init; }
 
     public required IImmutableDictionary<string, TemplateString> Variables { get; init; }
 

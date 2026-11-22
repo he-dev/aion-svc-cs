@@ -20,6 +20,16 @@ public class FindWorkflowsTest(TestWebApplication testApp) : IClassFixture<TestW
     }
 
     [Fact]
+    public void FindsWorkflowByNameWithExtension()
+    {
+        using var scope = testApp.Services.CreateScope();
+        var findWorkflows = scope.ServiceProvider.GetRequiredService<FindWorkflows>();
+        var results =  findWorkflows.Where("**/hello-npc.json");
+        Assert.Equal(1, results.Count);
+        Assert.Equal("hello/hello-npc", results.Single().Name);
+    }
+
+    [Fact]
     public void IgnoresDuplicatesButLogsThem()
     {
         using var scope = testApp.Services.CreateScope();

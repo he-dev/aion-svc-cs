@@ -1,5 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Aion.Core.Magic.Workflows;
+using Aion.Data;
+using Aion.Util;
 using Microsoft.Extensions.DependencyInjection;
 using Quartz;
 using Xunit;
@@ -23,17 +25,14 @@ public class ScheduleWorkflowTest(TestWebApplication testApp) : IClassFixture<Te
     {
         using var scope = testApp.Services.CreateScope();
         var scheduleWorkflow = scope.ServiceProvider.GetRequiredService<ScheduleWorkflow>();
+        await scheduleWorkflow.AsCron("**/hello-npc");
 
-        await scheduleWorkflow.AsCron("some-pattern");
+        var trigger = Assert.IsAssignableFrom<ICronTrigger>(await Scheduler.GetTrigger(new TriggerKey(name: "hello/hello-npc", group: "job://workflows")));
+        Assert.Equal("0/5 * * * * ?", trigger.CronExpressionString);
 
-        //var trigger = Assert.IsAssignableFrom<ICronTrigger>(await Scheduler.GetTrigger("trigger-key"));
-
-        //Assert.Equal("expected-cron", trigger.CronExpressionString);
-        //Assert.Equal("expected-job-key", trigger.JobKey);
-
-        var job = Assert.NotNull(await Scheduler.GetJobDetail(new JobKey("job-key")));
-
-
+        var job = Assert.NotNull(await Scheduler.GetJobDetail(new JobKey(name: "hello/hello-npc", group: "job://workflows")));
+        Assert.True(trigger.JobDataMap.ContainsKey(nameof(WorkflowPath)));
+        Assert.True(trigger.JobDataMap.ContainsKey(nameof(WorkflowMode)));
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
