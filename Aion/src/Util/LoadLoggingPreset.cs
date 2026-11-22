@@ -17,24 +17,24 @@ public class LoadLoggingPreset
     IOptions<SchedulerOptions> schedulerOptions
 )
 {
-    // core: Simplifies other calls.
-    public async Task<global::Serilog.ILogger> FromFromOrDefault(string? loggingPresetNameOrPath, global::Serilog.ILogger defaultLogger)
+    public async Task<global::Serilog.ILogger> FromFileOrNone(string? loggingPresetPath)
     {
-        if (loggingPresetNameOrPath is null)
+        if (string.IsNullOrEmpty(loggingPresetPath))
         {
-            logger
-                .Internal
-                .Snap<LoadLoggingPreset>()
-                .LogDebug("Logging preset name-or-path is null. Using the default logger.");
-            return defaultLogger;
+            logger.Baseline.LogDebug("Logging preset path is null or empty. Using the none-logger.");
+            return global::Serilog.Core.Logger.None;
         }
 
-        var loggingPresetPath = loggingPresetNameOrPath;
-
-        if (!Path.IsPathRooted(loggingPresetNameOrPath))
+        if (!Path.IsPathRooted(loggingPresetPath))
         {
-            logger.Internal.LogDebug("Logging preset references: '{logging.preset.path}'.", loggingPresetNameOrPath);
-            loggingPresetPath = Path.Combine(schedulerOptions.Value.Home, "loggers", loggingPresetNameOrPath);
+            logger.Baseline.LogDebug("Logging preset path '{logging.preset.path}' is a name.", loggingPresetPath);
+            loggingPresetPath = Path.Combine(schedulerOptions.Value.Home, "loggers", loggingPresetPath);
+        }
+
+        if (!File.Exists(loggingPresetPath))
+        {
+            logger.Baseline.LogError("Logging preset path '{logging.preset.path}' does not exist.", loggingPresetPath);
+            return global::Serilog.Core.Logger.None;
         }
 
         try
@@ -50,7 +50,7 @@ public class LoadLoggingPreset
 
             if (logging is null)
             {
-                logger.Internal.LogError("Logging preset '{logging.preset.path}' does not contain valid logger JSON. Using default logger.", loggingPresetPath);
+                logger.Baseline.LogError("Logging preset '{logging.preset.path}' does not contain valid logger.", loggingPresetPath);
             }
             else
             {
@@ -60,9 +60,9 @@ public class LoadLoggingPreset
         // meta: Single will throw this, so let's translate it to something meaningful.
         catch (Exception ex)
         {
-            logger.Internal.LogError(ex, "File '{logging.preset.path}' fails to deserialize as logging-preset. Falling back to default logger.", loggingPresetPath);
+            logger.Baseline.LogError(ex, "File '{logging.preset.path}' fails to deserialize as logging-preset. Falling back to default logger.", loggingPresetPath);
         }
 
-        return defaultLogger;
+        return global::Serilog.Core.Logger.None;
     }
 }

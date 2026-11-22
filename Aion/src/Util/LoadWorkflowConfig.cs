@@ -31,9 +31,13 @@ public class LoadWorkflowConfig
             return null;
         }
 
-        var config = await FromJsonOrNull(workflowPath) ?? await FromYamlOrNull(workflowPath);
+        var configs = await Task.WhenAll
+        (
+            FromJsonOrNull(workflowPath),
+            FromYamlOrNull(workflowPath)
+        );
 
-        if (config is null)
+        if (configs.FirstOrDefault(x => x is not null) is not { } config)
         {
             logger.Baseline.LogError("Workflow config '{@workflow.name}' does not load.");
             return null;
@@ -59,7 +63,7 @@ public class LoadWorkflowConfig
         // core: Apply config defaults.
         config = config with
         {
-            Variables = config.Variables.Concat(configDefault.Variables).LastValueWins(StringComparer.OrdinalIgnoreCase).ToDictionary(),
+            Variables = configDefault.Variables.Concat(config.Variables).LastValueWins(StringComparer.OrdinalIgnoreCase).ToDictionary(),
             Logger = config.Logger ?? configDefault.Logger
         };
 
@@ -69,9 +73,14 @@ public class LoadWorkflowConfig
             return null;
         }
 
-        logger.Baseline.LogInformation("Workflow config '{@workflow.name}' passes all validations.");
-
-        return config;
+        try
+        {
+            return config;
+        }
+        finally
+        {
+            logger.Baseline.LogInformation("Workflow config '{@workflow.name}' passes all validations.");
+        }
     }
 
     private async Task<WorkflowConfig?> FromJsonOrNull(WorkflowPath workflowPath)
