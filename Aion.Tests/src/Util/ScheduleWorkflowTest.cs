@@ -35,5 +35,23 @@ public class ScheduleWorkflowTest(TestWebApplication testApp) : IClassFixture<Te
         Assert.True(trigger.JobDataMap.ContainsKey(nameof(WorkflowMode)));
     }
 
+    [Fact]
+    public async Task ReSchedulesWorkflow()
+    {
+        using var scope = testApp.Services.CreateScope();
+        var scheduleWorkflow = scope.ServiceProvider.GetRequiredService<ScheduleWorkflow>();
+
+        await scheduleWorkflow.AsCron("**/hello-npc.json");
+        var trigger = Assert.IsAssignableFrom<ICronTrigger>(await Scheduler.GetTrigger(new TriggerKey(name: "hello/hello-npc", group: "job://workflows")));
+        Assert.Equal("0/5 * * * * ?", trigger.CronExpressionString);
+        Assert.NotNull(await Scheduler.GetJobDetail(new JobKey(name: "hello/hello-npc", group: "job://workflows")));
+
+        await scheduleWorkflow.AsCron("**/hello-npc.yaml");
+        trigger = Assert.IsAssignableFrom<ICronTrigger>(await Scheduler.GetTrigger(new TriggerKey(name: "hello/hello-npc", group: "job://workflows")));
+        Assert.Equal("0/5 1 * * * ?", trigger.CronExpressionString);
+        Assert.NotNull(await Scheduler.GetJobDetail(new JobKey(name: "hello/hello-npc", group: "job://workflows")));
+
+    }
+
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

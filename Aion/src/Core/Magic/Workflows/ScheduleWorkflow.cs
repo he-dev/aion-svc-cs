@@ -32,7 +32,6 @@ public class ScheduleWorkflow
             else
             {
                 logger
-                    .Snap<ScheduleWorkflow>()
                     .Baseline
                     .LogError("Skips workflow '{@workflow.name}' because it does not load.", workflowPath);
             }
