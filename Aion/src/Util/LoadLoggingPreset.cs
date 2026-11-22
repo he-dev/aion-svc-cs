@@ -17,52 +17,53 @@ public class LoadLoggingPreset
     IOptions<SchedulerOptions> schedulerOptions
 )
 {
-    public async Task<global::Serilog.ILogger> FromFileOrNone(string? loggingPresetPath)
+    public async Task<JsonObject?> FromFileOrDefault(string? loggingPresetPath)
     {
         if (string.IsNullOrEmpty(loggingPresetPath))
         {
             logger.Baseline.LogDebug("Logging preset path is null or empty. Using the none-logger.");
-            return global::Serilog.Core.Logger.None;
         }
-
-        if (!Path.IsPathRooted(loggingPresetPath))
+        else
         {
-            logger.Baseline.LogDebug("Logging preset path '{logging.preset.path}' is a name.", loggingPresetPath);
-            loggingPresetPath = Path.Combine(schedulerOptions.Value.Home, "loggers", loggingPresetPath);
-        }
-
-        if (!File.Exists(loggingPresetPath))
-        {
-            logger.Baseline.LogError("Logging preset path '{logging.preset.path}' does not exist.", loggingPresetPath);
-            return global::Serilog.Core.Logger.None;
-        }
-
-        try
-        {
-            // core: Return the configuration.
-            await using var fileStream = new FileStream(loggingPresetPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var logging = await JsonSerializer.DeserializeAsync<JsonObject>(fileStream, new JsonSerializerOptions
+            if (!Path.IsPathRooted(loggingPresetPath))
             {
-                ReadCommentHandling = JsonCommentHandling.Skip,
-                AllowTrailingCommas = true,
-                PropertyNameCaseInsensitive = true
-            });
+                logger.Baseline.LogDebug("Logging-preset path '{logging.preset.path}' is a name.", loggingPresetPath);
+                loggingPresetPath = Path.Combine(schedulerOptions.Value.Home, "loggers", loggingPresetPath);
+            }
 
-            if (logging is null)
+            if (File.Exists(loggingPresetPath))
             {
-                logger.Baseline.LogError("Logging preset '{logging.preset.path}' does not contain valid logger.", loggingPresetPath);
+                try
+                {
+                    await using var fileStream = new FileStream(loggingPresetPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    var logging = await JsonSerializer.DeserializeAsync<JsonObject>(fileStream, new JsonSerializerOptions
+                    {
+                        ReadCommentHandling = JsonCommentHandling.Skip,
+                        AllowTrailingCommas = true,
+                        PropertyNameCaseInsensitive = true
+                    });
+
+                    if (logging is null)
+                    {
+                        logger.Baseline.LogError("File '{logging.preset.path}' does not contain valid logging-preset.", loggingPresetPath);
+                    }
+                    else
+                    {
+                        return logging;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Baseline.LogError(ex, "File '{logging.preset.path}' fails to deserialize as logging-preset.", loggingPresetPath);
+                }
             }
             else
             {
-                return logging.ToLogger();
+                logger.Baseline.LogError("Logging-preset path '{logging.preset.path}' does not exist.", loggingPresetPath);
             }
         }
-        // meta: Single will throw this, so let's translate it to something meaningful.
-        catch (Exception ex)
-        {
-            logger.Baseline.LogError(ex, "File '{logging.preset.path}' fails to deserialize as logging-preset. Falling back to default logger.", loggingPresetPath);
-        }
 
-        return global::Serilog.Core.Logger.None;
+        //return global::Serilog.Core.Logger.None;
+        return null;
     }
 }

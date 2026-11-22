@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Immutable;
+using System.Text.Json.Nodes;
 using Aion.Data.Templating;
 using Quartz;
 
@@ -17,7 +18,7 @@ public record WorkflowSpec
 
     public required IImmutableList<StepSpec> Steps { get; init; }
 
-    public required Serilog.ILogger Logger { get; init; } = Serilog.Core.Logger.None;
+    public required JsonObject? Logger { get; init; }
 }
 
 public record StepSpec

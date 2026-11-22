@@ -15,7 +15,7 @@ public class WorkflowVariableGroup : PropertyScriptObject, IVariableGroup
 {
     public required WorkflowMode Mode { get; init; }
     public string? TraceId => Activity.Current?.TraceId.ToString();
-    public string? ParentSpanId =>  Activity.Current?.ParentSpanId.ToString();
+    public string? SpanId =>  Activity.Current?.SpanId.ToString();
 
     public WorkflowVariableGroup(IImmutableDictionary<string, string> variables)
     {

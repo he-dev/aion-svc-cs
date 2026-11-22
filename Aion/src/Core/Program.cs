@@ -112,6 +112,7 @@ builder.Services.AddQuartzHostedService(options =>
 
 
 builder.Services.AddScoped<CreateWorkflowSummary>();
+builder.Services.AddScoped<CreateLogger>();
 builder.Services.AddScoped<ScheduleWorkflow>();
 builder.Services.AddScoped<ScheduleWorkflowPolling>();
 builder.Services.AddScoped<ExecuteWorkflow>();

@@ -37,7 +37,7 @@ public class LoadWorkflowSpec
                 Trigger = CreateWorkflowTrigger.Create(workflowPath, WorkflowMode.Job, builder => builder.WithCronSchedule(config.Cron)),
                 Enabled = config.Enabled,
                 Variables = config.Variables.ToImmutableDictionary(x => x.Key, x => TemplateString.From(x.Value)),
-                Logger = await loadLoggingPreset.FromFileOrNone(config.Logger),
+                Logger = await loadLoggingPreset.FromFileOrDefault(config.Logger),
                 Steps =
                 [
                     .. config.Steps.Select((step, index) => new StepSpec

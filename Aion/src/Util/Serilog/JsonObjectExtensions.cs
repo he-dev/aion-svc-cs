@@ -1,33 +1,13 @@
 ﻿using System;
-using System.IO;
-using System.Text;
 using System.Text.Json.Nodes;
 using Aion.Util.Json;
-using Microsoft.Extensions.Configuration;
-using Serilog;
 
 namespace Aion.Util.Serilog;
 
 public static class JsonObjectExtensions
 {
-    // core: Converts a Serilog configuration into a Serilog logger.
-    // note: This is a bit tricky, but it's the only way to get the logger to work.
-    public static ILogger ToLogger(this JsonObject serilog)
-    {
-        ArgumentNullException.ThrowIfNull(serilog);
-
-        // meta: This node is required in the appsettings.json for Serilog to find its settings.
-        serilog = new JsonObject { ["Serilog"] = serilog };
-
-        // meta: Uses an in-memory appsettings.json from which Serilog can create its sinks.
-        var json = serilog.ToJsonString();
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
-        var config = new ConfigurationBuilder().AddJsonStream(stream).Build();
-        return new LoggerConfiguration().ReadFrom.Configuration(config).CreateLogger();
-    }
-
     // core: Allows modifying each path property it finds on the "File" sink".
-    public static JsonObject? WithPaths(this JsonObject? serilog, Func<string, string> modifyPath)
+    public static JsonObject? ForEachPath(this JsonObject? serilog, Func<string, string> modifyPath)
     {
         if (serilog is null) return null;
 

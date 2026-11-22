@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
@@ -18,24 +19,26 @@ public class ExecuteStep
     StartProcess startProcess
 )
 {
-    public async Task<bool> AsProcess(StepSpec step, WorkflowMode source, ImmutableList<IVariableGroup> variables, CancellationToken cancellationToken = default)
+    public async Task<bool> AsProcess(StepSpec step, ImmutableList<IVariableGroup> variables, CancellationToken cancellationToken = default)
     {
         using var about = logger.Baseline.BeginScopeAbout<ExecuteStep>
         ([
             ("workflow.step.index", step.Index),
             ("workflow.step.name", step.Name)
         ]);
+        about.Zero.LogDebug(null);
 
-        variables = variables.Add(new StepVariableGroup
-        {
-            Index = step.Index,
-            Name = step.Name
-        });
+        variables =
+        [
+            .. variables, new StepVariableGroup
+            {
+                Index = step.Index,
+                Name = step.Name
+            }
+        ];
 
         try
         {
-            about.Zero.LogDebug(null);
-
             var exitCode = await startProcess.Invoke
             (
                 step.FileName.Render(variables),
@@ -57,7 +60,7 @@ public class ExecuteStep
                 default:
                 {
                     using var exitScope = logger.BeginScopeWith(("workflow.step.exit_code", exitCode));
-                    about.Last.LogError("Step {workflow.step.index} failed after {activity.duration_ms:N0} ms with exit code {workflow.step.exit_code}.");
+                    about.Last.LogError("Step {workflow.step.index} fails after {activity.duration_ms:N0} ms with exit code {workflow.step.exit_code}.");
                 }
                     break;
             }

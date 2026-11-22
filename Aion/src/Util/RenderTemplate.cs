@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using Aion.Data.Templating;
 using Scriban;
 using Scriban.Functions;
@@ -18,7 +20,7 @@ public static class RenderTemplate
 {
     private const int MaxPassCount = 10;
 
-    public static string Render(this TemplateString template, IImmutableList<IVariableGroup> variableGroups)
+    public static string Render(this TemplateString template, IEnumerable<IVariableGroup> variableGroups)
     {
         // note: Scriban's documentation recommends creating everything from scratch each time.
         var context = new TemplateContext
@@ -36,7 +38,7 @@ public static class RenderTemplate
 
         context.PushGlobal(ScriptObject.From(typeof(BuiltinFunctions)));
         context.PushGlobal(ScriptObject.From(typeof(StringFunctions)));
-        context.PushGlobal(CompositeVariableGroup.From(variableGroups.Add(new EnvironmentVariableGroup())));
+        context.PushGlobal(CompositeVariableGroup.From(variableGroups.Append(new EnvironmentVariableGroup())));
 
         var current = template.Value;
         var previous = string.Empty;
