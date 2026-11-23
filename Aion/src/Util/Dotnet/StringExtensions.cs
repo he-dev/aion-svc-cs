@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using Microsoft.Extensions.FileSystemGlobbing;
 
 namespace Aion.Util.Dotnet;
@@ -20,5 +21,11 @@ public static class StringExtensions
         ArgumentException.ThrowIfNullOrEmpty(value);
 
         return value.Replace('\\', '/');
+    }
+
+    public static int Depth(this string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        return path.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries).Length;
     }
 }

@@ -6,17 +6,17 @@ using Xunit;
 
 namespace Aion.Tests.Util;
 
-public class LoadWorkflowConfigDefaultTest(TestWebApplication testApp): IClassFixture<TestWebApplication>
+public class LoadWorkflowConfigTest(TestWebApplication testApp): IClassFixture<TestWebApplication>
 {
     [Fact]
     public async Task MergesProfiles()
     {
         using var scope = testApp.Services.CreateScope();
         var findWorkflows = scope.ServiceProvider.GetRequiredService<FindWorkflows>();
-        var loadWorkflowProfile =  scope.ServiceProvider.GetRequiredService<LoadWorkflowConfigDefault>();
+        var loadWorkflowConfig =  scope.ServiceProvider.GetRequiredService<LoadWorkflowConfig>();
 
         var workflowPath = findWorkflows.Where("**/hello-cmd").Single();
-        var workflowProfile = await loadWorkflowProfile.FromFileOrEmpty(workflowPath);
+        var workflowProfile = await loadWorkflowConfig.Default(workflowPath);
         Assert.NotNull(workflowProfile);
         Assert.Equal("one", workflowProfile.Variables["one"]);
         Assert.Equal("two", workflowProfile.Variables["two"]);

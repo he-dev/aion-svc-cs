@@ -25,7 +25,7 @@ public class ScheduleWorkflowTest(TestWebApplication testApp) : IClassFixture<Te
     {
         using var scope = testApp.Services.CreateScope();
         var scheduleWorkflow = scope.ServiceProvider.GetRequiredService<ScheduleWorkflow>();
-        await scheduleWorkflow.AsCron("**/hello-npc");
+        await scheduleWorkflow.AsCron("**/hello-npc.json");
 
         var trigger = Assert.IsAssignableFrom<ICronTrigger>(await Scheduler.GetTrigger(new TriggerKey(name: "hello/hello-npc", group: "job://workflows")));
         Assert.Equal("0/5 * * * * ?", trigger.CronExpressionString);
