@@ -19,15 +19,14 @@ internal class WorkflowPollingJob
     {
         using var about = logger.Internal.BeginScopeAbout<WorkflowPollingJob>
         ([
-            ("job.group", context.JobDetail.Key.Group),
-            ("job.name", context.JobDetail.Key.Name)
+            ("job.key", context.JobDetail.Key),
         ]);
 
         about.Zero.LogDebug(null);
 
         try
         {
-            await scheduleWorkflow.AsCron(WorkflowPattern.Any);
+            await scheduleWorkflow.AsCron<WorkflowRegularJob>(WorkflowPattern.Any);
             about.Last.LogInformation("Job '{job.key}' completes in {activity.duration_ms:N0} ms.");
         }
         catch (Exception ex)

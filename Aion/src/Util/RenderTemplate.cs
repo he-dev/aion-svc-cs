@@ -1,6 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Aion.Data.Templating;
 using Scriban;
@@ -20,8 +20,20 @@ public static class RenderTemplate
 {
     private const int MaxPassCount = 10;
 
-    public static string Render(this TemplateString template, IEnumerable<IVariableGroup> variableGroups)
+    [return: NotNullIfNotNull("template")]
+    public static string? Render(this TemplateString template, ImmutableList<IVariableGroup> variableGroups)
     {
+        return String(template, variableGroups);
+    }
+
+    [return: NotNullIfNotNull("template")]
+    public static string? String(string? template, ImmutableList<IVariableGroup> variableGroups)
+    {
+        if (template is null)
+        {
+            return null;
+        }
+
         // note: Scriban's documentation recommends creating everything from scratch each time.
         var context = new TemplateContext
         {
@@ -40,7 +52,7 @@ public static class RenderTemplate
         context.PushGlobal(ScriptObject.From(typeof(StringFunctions)));
         context.PushGlobal(CompositeVariableGroup.From(variableGroups.Append(new EnvironmentVariableGroup())));
 
-        var current = template.Value;
+        var current = template;
         var previous = string.Empty;
         var passCount = 0;
 

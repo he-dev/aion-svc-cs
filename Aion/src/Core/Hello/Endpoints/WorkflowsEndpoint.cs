@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Aion.Core.Hello.Jobs;
 using Aion.Core.Magic.Workflows;
 using Aion.Data;
 using Aion.Util;
@@ -37,7 +38,7 @@ public static class WorkflowsEndpoint
     {
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
-        await parameters.ScheduleWorkflow.AsOnce(WorkflowPattern.Parse(body.Pattern), new WorkflowOverride
+        await parameters.ScheduleWorkflow.AsOnce<WorkflowCustomJob>(WorkflowPattern.Parse(body.Pattern), new WorkflowOverride
         {
             StartAt = DateTimeOffset.UtcNow,
             Steps = body.Steps
@@ -49,7 +50,7 @@ public static class WorkflowsEndpoint
     {
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
-        await parameters.ScheduleWorkflow.AsOnce(WorkflowPattern.Parse(body.Pattern), new WorkflowOverride
+        await parameters.ScheduleWorkflow.AsOnce<WorkflowCustomJob>(WorkflowPattern.Parse(body.Pattern), new WorkflowOverride
         {
             StartAt = DateTimeOffset.UtcNow + body.Wait,
             Steps = body.Steps
@@ -62,7 +63,7 @@ public static class WorkflowsEndpoint
     {
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
-        await parameters.ScheduleWorkflow.AsOnce(WorkflowPattern.Parse(body.Pattern), new WorkflowOverride
+        await parameters.ScheduleWorkflow.AsOnce<WorkflowCustomJob>(WorkflowPattern.Parse(body.Pattern), new WorkflowOverride
         {
             StartAt = body.WhenUtc,
             Steps = body.Steps
@@ -76,7 +77,7 @@ public static class WorkflowsEndpoint
         var inMemoryFork = new InMemoryFork();
         using var unsubscribe = parameters.ForkLogging.Into(inMemoryFork);
 
-        await parameters.ScheduleWorkflow.AsCron(WorkflowPattern.Any);
+        await parameters.ScheduleWorkflow.AsCron<WorkflowRegularJob>(WorkflowPattern.Any);
 
         var results =
             inMemoryFork

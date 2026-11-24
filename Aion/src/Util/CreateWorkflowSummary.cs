@@ -15,7 +15,7 @@ public class CreateWorkflowSummary
     ILogger<CreateWorkflowSummary> logger,
     ForkLogging forkLogging,
     FindWorkflows findWorkflows,
-    LoadWorkflowSpec loadWorkflowSpec
+    LoadWorkflow loadWorkflow
 )
 {
     public async Task<object> Where(WorkflowPattern workflowPattern)
@@ -30,11 +30,11 @@ public class CreateWorkflowSummary
             var inMemoryFork = new InMemoryFork();
             using var unsubscribe = forkLogging.Into(inMemoryFork);
 
-            if (await loadWorkflowSpec.FromFile(workflowPath) is { } workflowSpec)
+            if (await loadWorkflow.Spec(workflowPath) is { } workflowSpec)
             {
                 var next =
-                    WorkflowTrigger
-                        .UsingJobData(workflowPath, WorkflowMode.Job)
+                    TriggerBuilder
+                        .Create()
                         .WithCronSchedule(workflowSpec.Cron)
                         .Build()
                         .FiresAt(utcNow)

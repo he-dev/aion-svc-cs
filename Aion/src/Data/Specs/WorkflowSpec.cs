@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Immutable;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using Aion.Data.Templating;
-using Quartz;
+using Aion.Util;
 
 namespace Aion.Data.Specs;
+
+public delegate Task<T> Render<T>(ImmutableList<IVariableGroup> variables);
 
 public record WorkflowSpec
 {
@@ -14,13 +17,11 @@ public record WorkflowSpec
 
     public required string Cron { get; init; }
 
-    //public required ITrigger Trigger { get; init; }
-
     public required IImmutableDictionary<string, TemplateString> Variables { get; init; }
 
     public required IImmutableList<StepSpec> Steps { get; init; }
 
-    public required JsonObject? Logger { get; init; }
+    public required Render<JsonObject?> Logger { get; init; }
 }
 
 public record StepSpec

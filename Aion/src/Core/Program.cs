@@ -75,10 +75,7 @@ builder.Services.AddScoped<WorkflowPollingJob>();
 builder.Services.AddScoped<ValidateWorkflowConfig>();
 builder.Services.AddScoped<ValidateWorkflowConfigDefault>();
 builder.Services.AddScoped<FindWorkflows>();
-builder.Services.AddScoped<LoadWorkflowSpec>();
-builder.Services.AddScoped<LoadLoggingPreset>();
-builder.Services.AddScoped<LoadWorkflowConfig>();
-builder.Services.AddScoped<LoadWorkflowSpec>();
+builder.Services.AddScoped<LoadWorkflow>();
 builder.Services.AddScoped<ExecuteWorkflow>();
 builder.Services.AddScoped<ExecuteStep>();
 builder.Services.AddScoped<StartProcess>();
@@ -111,7 +108,6 @@ builder.Services.AddQuartzHostedService(options =>
 builder.Services.AddScoped<CreateWorkflowSummary>();
 builder.Services.AddScoped<CreateLogger>();
 builder.Services.AddScoped<ScheduleWorkflow>();
-builder.Services.AddScoped<ScheduleWorkflowPolling>();
 builder.Services.AddScoped<ExecuteWorkflow>();
 builder.Services.AddScoped<GetProfileTriggers>();
 builder.Services.AddScoped<GetDowntimes>();
@@ -143,7 +139,7 @@ using (var scope = app.Services.CreateScope())
 {
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     logger.Baseline.Snap<Program>().LogInformation("Scheduler starts.");
-    await scope.ServiceProvider.GetRequiredService<ScheduleWorkflowPolling>().Invoke();
+    await scope.ServiceProvider.GetRequiredService<ScheduleWorkflow>().Polling<WorkflowPollingJob>();
 }
 
 app.Run();

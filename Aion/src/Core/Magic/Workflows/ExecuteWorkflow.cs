@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
@@ -6,7 +7,6 @@ using System.Threading.Tasks;
 using Aion.Data;
 using Aion.Data.Scheduler;
 using Aion.Data.Specs;
-using Aion.Data.Templating;
 using Aion.Util;
 using Aion.Util.Serilog;
 using Microsoft.Extensions.Logging;
@@ -24,7 +24,7 @@ public class ExecuteWorkflow
     ExecuteStep executeStep
 )
 {
-    public async Task Invoke(WorkflowSpec workflow, WorkflowMode mode, IImmutableList<string> customSteps, CancellationToken cancellationToken = default)
+    public async Task Invoke(WorkflowSpec workflow, WorkflowMode mode, IReadOnlyList<string> customSteps, CancellationToken cancellationToken = default)
     {
         using var about = logger.Baseline.BeginScopeAbout<ExecuteWorkflow>
         ([
@@ -40,14 +40,14 @@ public class ExecuteWorkflow
                 Home = schedulerOptions.Value.Home,
                 Name = schedulerOptions.Value.Name,
             },
-            new WorkflowVariableGroup(workflow.Variables.ToImmutableDictionary(x => x.Key, x => x.Value.Render([])))
+            new WorkflowVariableGroup(workflow.Variables.ToImmutableDictionary(x => x.Key, x => RenderTemplate.String(x.Value, [])))
             {
                 Path = workflow.Path,
                 Mode = mode,
             }
         ]);
 
-        var workflowLogger = workflow.Logger.ForEachPath(path => TemplateString.From(path).Render(variables));
+        var workflowLogger = await workflow.Logger(variables);
         var workflowFork = new LoggerFork(createLogger.FromJsonOrDefault(workflowLogger) ?? global::Serilog.Core.Logger.None);
         using var unsubscribe = forkLogging.Into(workflowFork);
 

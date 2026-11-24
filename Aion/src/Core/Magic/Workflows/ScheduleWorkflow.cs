@@ -1,11 +1,13 @@
 ﻿using System;
-using System.Collections.Immutable;
+using System.IO;
 using System.Threading.Tasks;
-using Aion.Core.Hello.Jobs;
 using Aion.Data;
+using Aion.Data.JobInputs;
+using Aion.Data.Scheduler;
 using Aion.Data.Specs;
 using Aion.Util;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Quartz;
 using Wiretap.Core;
 
@@ -14,20 +16,46 @@ namespace Aion.Core.Magic.Workflows;
 public class ScheduleWorkflow
 (
     ILogger<ScheduleWorkflow> logger,
+    IOptions<SchedulerOptions> schedulerOptions,
     ISchedulerFactory schedulerFactory,
     FindWorkflows findWorkflows,
-    LoadWorkflowSpec loadWorkflowSpec
+    LoadWorkflow loadWorkflow
 )
 {
     // https://www.quartz-scheduler.net/documentation/quartz-3.x/quick-start.html
 
-    public async Task AsCron(WorkflowPattern workflowPattern)
+    public async Task Polling<TJob>() where TJob : IJob
+    {
+        var scheduler = await schedulerFactory.GetScheduler();
+        var schedulerHome = schedulerOptions.Value.Home;
+
+        try
+        {
+            var trigger = TriggerBuilder
+                .Create<TJob>()
+                .WithIdentity(group: "job://polling", name: Path.GetDirectoryName(schedulerHome)!)
+                .WithCronSchedule(schedulerOptions.Value.Polling.Cron)
+                .StartAt(DateTimeOffset.UtcNow + schedulerOptions.Value.StartDelay)
+                .Build();
+
+            var next = await scheduler.ScheduleJob<TJob>(trigger);
+
+            logger.Baseline.LogInformation("Workflow polling starts. Next run at '{workflow.polling.next}'.", next);
+        }
+        catch (Exception ex)
+        {
+            logger.Baseline.LogError(ex, "Workflow polling fails.");
+            throw new JobExecutionException(ex);
+        }
+    }
+
+    public async Task AsCron<TJob>(WorkflowPattern workflowPattern) where TJob : IJob<WorkflowRegularInput>
     {
         foreach (var workflowPath in findWorkflows.Where(workflowPattern))
         {
-            if (await loadWorkflowSpec.FromFile(workflowPath) is { } workflow)
+            if (await loadWorkflow.Spec(workflowPath) is { } workflow)
             {
-                await AsCron(workflow);
+                await AsCron<TJob>(workflow);
             }
             else
             {
@@ -38,7 +66,7 @@ public class ScheduleWorkflow
         }
     }
 
-    private async Task AsCron(WorkflowSpec workflowSpec)
+    private async Task AsCron<TJob>(WorkflowSpec workflowSpec) where TJob : IJob<WorkflowRegularInput>
     {
         var scheduler = await schedulerFactory.GetScheduler();
 
@@ -49,8 +77,14 @@ public class ScheduleWorkflow
         about.Zero.Internal.LogDebug(null);
 
         var cronTrigger =
-            (ICronTrigger)WorkflowTrigger
-                .UsingJobData(workflowSpec.Path, WorkflowMode.Job)
+            (ICronTrigger)TriggerBuilder
+                .Create<TJob>()
+                .WithIdentity(TriggerKey(WorkflowMode.Job, workflowSpec.Path))
+                .UsingInput(new WorkflowRegularInput
+                {
+                    WorkflowPath = workflowSpec.Path,
+                    WorkflowMode = WorkflowMode.Job
+                })
                 .WithCronSchedule(workflowSpec.Cron)
                 .Build();
 
@@ -84,14 +118,7 @@ public class ScheduleWorkflow
         }
         else
         {
-            var jobDetail =
-                JobBuilder
-                    .Create<WorkflowRegularJob>()
-                    .WithIdentity(cronTrigger.JobKey)
-                    .DisallowConcurrentExecution()
-                    .Build();
-
-            var next = await scheduler.ScheduleJob(jobDetail, cronTrigger);
+            var next = await scheduler.ScheduleJob<TJob>(cronTrigger, job => job.DisallowConcurrentExecution());
             about.Last.LogInformation
             (
                 "Schedules workflow '{@workflow.name}' to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.",
@@ -102,21 +129,27 @@ public class ScheduleWorkflow
         }
     }
 
-    public async Task AsOnce(WorkflowPattern workflowPattern, WorkflowOverride workflowOverride)
+    public async Task AsOnce<TJob>(WorkflowPattern workflowPattern, WorkflowOverride workflowOverride) where TJob : IJob<WorkflowCustomInput>
     {
         foreach (var workflowPath in findWorkflows.Where(workflowPattern))
         {
             var trigger =
-                WorkflowTrigger
-                    .UsingJobData(workflowPath, WorkflowMode.Api)
-                    .UsingJobData(nameof(WorkflowOverride), workflowOverride.Steps)
+                TriggerBuilder
+                    .Create<TJob>()
+                    .WithIdentity(TriggerKey(WorkflowMode.Job, workflowPath))
+                    .UsingInput(new WorkflowCustomInput
+                    {
+                        WorkflowPath = workflowPath,
+                        WorkflowMode = WorkflowMode.Job,
+                        WorkflowSteps = workflowOverride.Steps
+                    })
                     .StartAt(workflowOverride.StartAt)
                     .WithSimpleSchedule(x => x.WithRepeatCount(0))
                     .Build();
 
-            if (await loadWorkflowSpec.FromFile(workflowPath) is { } workflow)
+            if (await loadWorkflow.Spec(workflowPath) is { } workflow)
             {
-                await AsOnce(workflow, trigger, [.. workflowOverride.Steps]);
+                await AsOnce<TJob>(workflow, trigger);
             }
             else
             {
@@ -125,7 +158,7 @@ public class ScheduleWorkflow
         }
     }
 
-    private async Task AsOnce(WorkflowSpec workflowSpec, ITrigger trigger, IImmutableList<string> steps)
+    private async Task AsOnce<TJob>(WorkflowSpec workflowSpec, ITrigger trigger) where TJob : IJob<WorkflowCustomInput>
     {
         using var about = logger.Baseline.BeginScopeAbout<ScheduleWorkflow>
         ([
@@ -153,14 +186,7 @@ public class ScheduleWorkflow
         }
         else
         {
-            var jobDetail =
-                JobBuilder
-                    .Create<WorkflowCustomJob>()
-                    .WithIdentity(trigger.JobKey)
-                    .DisallowConcurrentExecution()
-                    .Build();
-
-            var nextNew = await scheduler.ScheduleJob(jobDetail, trigger);
+            var nextNew = await scheduler.ScheduleJob<TJob>(trigger, job => job.DisallowConcurrentExecution());
             about.Last.LogInformation(
                 "Schedules workflows '{@workflow.name}'. Next execution at '{workflow.trigger.next}'.",
                 workflowSpec.Path,
@@ -193,5 +219,14 @@ public class ScheduleWorkflow
         {
             scope.Last.LogError(e, "Fails to delete trigger '{workflow.trigger.key}'.");
         }
+    }
+
+    public static TriggerKey TriggerKey(WorkflowMode mode, WorkflowPath path)
+    {
+        return new TriggerKey
+        (
+            group: $"{mode}://workflows".ToLowerInvariant(),
+            name: path.Name.ToLowerInvariant()
+        );
     }
 }

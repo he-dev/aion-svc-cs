@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 using System.Threading;
 using System.Threading.Tasks;
 using Aion.Core.Magic.Workflows;
-using Aion.Data;
+using Aion.Data.JobInputs;
 using Aion.Util;
 using Microsoft.Extensions.Logging;
 using Quartz;
@@ -14,30 +14,27 @@ namespace Aion.Core.Hello.Jobs;
 public class WorkflowRegularJob
 (
     ILogger<WorkflowRegularJob> logger,
-    LoadWorkflowSpec loadWorkflowSpec,
+    LoadWorkflow loadWorkflow,
     ExecuteWorkflow executeWorkflow,
     ScheduleWorkflow scheduleWorkflow
-) : IJob
+) : IJob<WorkflowRegularInput>
 {
-    public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default)
+    public async ValueTask Execute(IJobExecutionContext context, WorkflowRegularInput input, CancellationToken cancellationToken = default)
     {
-        var workflowPath = context.Trigger.JobDataMap.Get<WorkflowPath>(nameof(WorkflowPath));
-        var workflowMode = context.Trigger.JobDataMap.Get<WorkflowMode>(nameof(WorkflowMode));
-
         using var about = logger.Internal.BeginScopeAbout<WorkflowRegularJob>
         ([
             ("job.key", context.JobDetail.Key),
-            ("workflow.name", workflowPath.Name),
-            ("workflow.mode", workflowMode)
+            ("workflow.name", input.WorkflowPath.Name),
+            ("workflow.mode", input.WorkflowMode)
         ]);
 
         about.Zero.LogDebug(null);
 
         try
         {
-            if (await loadWorkflowSpec.FromFile(workflowPath) is { } workflow)
+            if (await loadWorkflow.Spec(input.WorkflowPath) is { } workflow)
             {
-                await executeWorkflow.Invoke(workflow, WorkflowMode.Job, ImmutableList<string>.Empty, cancellationToken);
+                await executeWorkflow.Invoke(workflow, input.WorkflowMode, ImmutableList<string>.Empty, cancellationToken);
             }
             else
             {

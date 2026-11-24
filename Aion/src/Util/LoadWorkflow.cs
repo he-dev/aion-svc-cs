@@ -5,28 +5,87 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Aion.Data;
 using Aion.Data.Configs;
+using Aion.Data.Scheduler;
+using Aion.Data.Specs;
+using Aion.Data.Templating;
 using Aion.Util.Dotnet;
+using Aion.Util.Serilog;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Wiretap.Core;
 
 namespace Aion.Util;
 
-public class LoadWorkflowConfig
+public class LoadWorkflow
 (
-    ILogger<LoadWorkflowConfig> logger,
+    ILogger<LoadWorkflow> logger,
+    IOptions<SchedulerOptions> schedulerOptions,
     ValidateWorkflowConfig validateWorkflowConfig,
     ValidateWorkflowConfigDefault validateWorkflowConfigDefault
 )
 {
     private static readonly IImmutableList<string> Extensions = [".json", ".yaml", ".yml"];
 
+    public async Task<WorkflowSpec?> Spec(WorkflowPath workflowPath)
+    {
+        using var about = logger.Internal.BeginScopeAbout<LoadWorkflow>([("@workflow.name", workflowPath)]);
+        about.Zero.LogDebug("Loading workflow '{@workflow.name}'.", workflowPath);
+
+        if (await Config(workflowPath) is not { } config)
+        {
+            about.Last.LogError("Cannot load workflow '{@workflow.name}' because there is no spec.");
+            return null;
+        }
+
+        try
+        {
+            return new WorkflowSpec
+            {
+                Path = workflowPath,
+                Cron = config.Cron,
+                Enabled = config.Enabled,
+                Variables = config.Variables.ToImmutableDictionary(x => x.Key, x => TemplateString.From(x.Value)),
+                Logger = async variables =>
+                {
+                    var loggerPath = RenderTemplate.String(config.Logger, variables);
+                    var loggerJson = await Logger(loggerPath);
+                    return loggerJson.ForEachPath(path => RenderTemplate.String(path, variables));
+                },
+                Steps =
+                [
+                    .. config.Steps.Select((step, index) => new StepSpec
+                    {
+                        Index = index,
+                        Name = step.Name,
+                        Enabled = config.Enabled,
+                        FileName = step.FileName,
+                        Arguments = [.. step.Arguments.Select(TemplateString.From)],
+                        Environment = step.Environment.ToImmutableDictionary(x => x.Key, x => TemplateString.From(x.Value)),
+                        WorkingDirectory = step.WorkingDirectory ?? string.Empty,
+                        Timeout = step.Timeout,
+                    })
+                ]
+            };
+        }
+        catch (Exception ex)
+        {
+            about.Last.LogError(ex, "Loading workflow '{@workflow.name}' fails.", workflowPath);
+            return null;
+        }
+        finally
+        {
+            about.Last.WhenFirstOnly.LogInformation("Workflow '{@workflow.name}' loads.", workflowPath);
+        }
+    }
+
     // core: In case the config specifies explicit nulls, fallback to empty collections.
     [SuppressMessage("ReSharper", "NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract")]
-    public async Task<WorkflowConfig?> FromFileOrNull(WorkflowPath workflowPath)
+    public async Task<WorkflowConfig?> Config(WorkflowPath workflowPath)
     {
         var extension = Path.GetExtension(workflowPath).ToLowerInvariant();
         if (!Extensions.Contains(extension))
@@ -69,7 +128,7 @@ public class LoadWorkflowConfig
             ]
         };
 
-        var configDefault = await Default(workflowPath);
+        var configDefault = await ConfigDefault(workflowPath);
 
         // core: Apply config defaults.
         config = config with
@@ -94,7 +153,7 @@ public class LoadWorkflowConfig
         }
     }
 
-    public async Task<WorkflowConfigDefault> Default(WorkflowPath workflowPath)
+    public async Task<WorkflowConfigDefault> ConfigDefault(WorkflowPath workflowPath)
     {
         var configDefault = WorkflowConfigDefault.Empty;
         var rootDepth = Path.GetFullPath(workflowPath.Root).Depth();
@@ -136,8 +195,33 @@ public class LoadWorkflowConfig
 
         return
             validateWorkflowConfigDefault.That(configDefault)
-            ? configDefault
-            : WorkflowConfigDefault.Empty;
+                ? configDefault
+                : WorkflowConfigDefault.Empty;
+    }
+
+    public async Task<JsonObject?> Logger(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            logger.Baseline.LogDebug("Logging preset path is null or empty. Using the none-logger.");
+        }
+        else
+        {
+            if (!Path.IsPathRooted(path))
+            {
+                logger.Baseline.LogDebug("Logging-preset path '{logging.preset.name}' is a name.", path);
+                path = Path.Combine(schedulerOptions.Value.Home, "loggers", path);
+            }
+
+            if (Path.Exists(path))
+            {
+                return await FromJsonOrNull<JsonObject>(path);
+            }
+
+            logger.Baseline.LogError("Logging preset '{logging.preset.path}' does not exist.", path);
+        }
+
+        return null;
     }
 
     private async Task<T?> FromJsonOrNull<T>(string path) where T : class
@@ -148,7 +232,7 @@ public class LoadWorkflowConfig
                 // core: This extension is supported.
                 break;
             default:
-                logger.Internal.LogDebug("Skipping unsupported type: '{workflow.config.path}'", path);
+                logger.Internal.LogDebug("Skipping unsupported type: '{path}'", path);
                 return null;
         }
 
@@ -181,7 +265,7 @@ public class LoadWorkflowConfig
                 // core: This extension is supported.
                 break;
             default:
-                logger.Internal.LogDebug("Skipping unsupported type: '{workflow.config.path}'", path);
+                logger.Internal.LogDebug("Skipping unsupported type: '{path}'", path);
                 return null;
         }
 
