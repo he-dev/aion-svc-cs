@@ -35,17 +35,21 @@ public class WorkflowRegularJob
             if (await loadWorkflow.Spec(input.WorkflowPath) is { } workflow)
             {
                 await executeWorkflow.Invoke(workflow, input.WorkflowMode, ImmutableList<string>.Empty, cancellationToken);
+                about.Last.LogInformation("Job '{job.key}' completes in {activity.duration_ms:N0} ms.");
             }
             else
             {
                 await scheduleWorkflow.Deletion(context.Trigger);
             }
-
-            about.Last.LogInformation("Job '{job.key}' completes in {activity.duration_ms:N0} ms.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            about.Last.LogError("Job '{job.key}' was canceled after {activity.duration_ms:N0} ms.");
         }
         catch (OperationCanceledException)
         {
-            about.Last.LogError("Job '{job.key}' was canceled after {activity.duration_ms:N0} ms.");
+            await scheduleWorkflow.Deletion(context.Trigger);
+            about.Last.LogError("Job '{job.key}' canceled and deleted after {activity.duration_ms:N0} ms.");
         }
         catch (Exception ex)
         {

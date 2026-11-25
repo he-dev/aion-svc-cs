@@ -21,7 +21,7 @@ public class ScheduleWorkflowTest(TestWebApplication testApp) : IClassFixture<Te
     }
 
     [Fact]
-    public async Task SchedulesWorkflow()
+    public async Task CanScheduleWorkflow()
     {
         using var scope = testApp.Services.CreateScope();
         var scheduleWorkflow = scope.ServiceProvider.GetRequiredService<ScheduleWorkflow>();
@@ -35,7 +35,7 @@ public class ScheduleWorkflowTest(TestWebApplication testApp) : IClassFixture<Te
     }
 
     [Fact]
-    public async Task ReSchedulesWorkflow()
+    public async Task CanRescheduleWorkflow()
     {
         using var scope = testApp.Services.CreateScope();
         var scheduleWorkflow = scope.ServiceProvider.GetRequiredService<ScheduleWorkflow>();

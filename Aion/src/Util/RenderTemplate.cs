@@ -71,7 +71,7 @@ public static class RenderTemplate
             }
             catch (Exception ex)
             {
-                throw new Exception($"Cannot render '{template}'.", ex);
+                throw new RenderTemplateStringException(template, ex);
             }
 
             // core: Apparently it's still not fully rendered.
@@ -84,3 +84,6 @@ public static class RenderTemplate
         return current;
     }
 }
+
+public class RenderTemplateStringException(string template, Exception inner)
+    : Exception($"Cannot render '{template}'.", inner);

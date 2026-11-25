@@ -1,0 +1,9 @@
+enabled: true
+cron: "0/5 1 * * * ?"
+steps:
+  - enabled: true
+    fileName: "cmd.exe"
+    arguments:
+      - "/d"
+      - "/c"
+      - "exit 0"

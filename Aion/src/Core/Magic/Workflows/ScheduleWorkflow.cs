@@ -31,12 +31,13 @@ public class ScheduleWorkflow
 
         try
         {
-            var trigger = TriggerBuilder
-                .Create<TJob>()
-                .WithIdentity(group: "job://polling", name: Path.GetDirectoryName(schedulerHome)!)
-                .WithCronSchedule(schedulerOptions.Value.Polling.Cron)
-                .StartAt(DateTimeOffset.UtcNow + schedulerOptions.Value.StartDelay)
-                .Build();
+            var trigger =
+                TriggerBuilder
+                    .Create<TJob>()
+                    .WithIdentity(group: "job://polling", name: Path.GetDirectoryName(schedulerHome)!)
+                    .WithCronSchedule(schedulerOptions.Value.Polling.Cron)
+                    .StartAt(DateTimeOffset.UtcNow + schedulerOptions.Value.StartDelay)
+                    .Build();
 
             var next = await scheduler.ScheduleJob<TJob>(trigger);
 
@@ -59,9 +60,7 @@ public class ScheduleWorkflow
             }
             else
             {
-                logger
-                    .Baseline
-                    .LogError("Skips workflow '{@workflow.name}' because it does not load.", workflowPath);
+                logger.Baseline.LogError("Skips workflow '{@workflow.name}' because it does not load.", workflowPath);
             }
         }
     }
@@ -93,10 +92,10 @@ public class ScheduleWorkflow
         // core: Compare cron expressions only if the workflow is already scheduled.
         if (await scheduler.GetTrigger(cronTrigger.Key) is ICronTrigger { CronExpressionString: { } currentCron })
         {
-            // core: Compare both the cron expressions.
-            if (cronTrigger is { CronExpressionString: { } otherCron } && currentCron.Equals(otherCron))
+            // core: Compare both cron expressions.
+            if (cronTrigger is { CronExpressionString: { } otherCron } && currentCron.Equals(otherCron, StringComparison.InvariantCultureIgnoreCase))
             {
-                about.Last.LogInformation("Workflow '{@workflow.name}' has not changed.");
+                about.Last.LogInformation("Workflow schedule for '{workflow.name}' has not changed: '{workflow.trigger.cron}'.", workflowSpec.Path.Name, cronTrigger.CronExpressionString);
             }
             else
             {
@@ -104,15 +103,15 @@ public class ScheduleWorkflow
                 {
                     about.Last.LogInformation
                     (
-                        "Reschedules workflow '{@workflow.name}' to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.",
-                        workflowSpec.Path,
+                        "Reschedules workflow '{workflow.name}' to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.",
+                        workflowSpec.Path.Name,
                         cronTrigger.CronExpressionString,
                         next
                     );
                 }
                 else
                 {
-                    about.Last.LogError("Cannot reschedule '{@workflow.name}'.");
+                    about.Last.LogError("Cannot reschedule '{workflow.name}'.", workflowSpec.Path.Name);
                 }
             }
         }
@@ -121,8 +120,8 @@ public class ScheduleWorkflow
             var next = await scheduler.ScheduleJob<TJob>(cronTrigger, job => job.DisallowConcurrentExecution());
             about.Last.LogInformation
             (
-                "Schedules workflow '{@workflow.name}' to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.",
-                workflowSpec.Path,
+                "Schedules workflow '{workflow.name}' to '{workflow.trigger.cron}'. Next execution at '{workflow.trigger.next}'.",
+                workflowSpec.Path.Name,
                 cronTrigger.CronExpressionString,
                 next
             );
@@ -153,7 +152,7 @@ public class ScheduleWorkflow
             }
             else
             {
-                logger.Snap<ScheduleWorkflow>().Baseline.LogError("Skips workflow '{@workflow.name}' because it does not load.");
+                logger.Snap<ScheduleWorkflow>().Baseline.LogError("Skips workflow '{workflow.name}' because it does not load.", workflowPath.Name);
             }
         }
     }
@@ -162,22 +161,16 @@ public class ScheduleWorkflow
     {
         using var about = logger.Baseline.BeginScopeAbout<ScheduleWorkflow>
         ([
-            ("@workflow.name", workflowSpec.Path),
+            ("workflow.name", workflowSpec.Path.Name),
         ]);
         about.Zero.Internal.LogDebug(null);
-
 
         var scheduler = await schedulerFactory.GetScheduler();
         if (await scheduler.GetTrigger(trigger.Key) is not null)
         {
             if (await scheduler.RescheduleJob(trigger.Key, trigger) is { } next)
             {
-                about.Last.LogInformation
-                (
-                    "Reschedules {@workflow.name}. Next execution at '{workflow.trigger.next}'.",
-                    workflowSpec.Path,
-                    next
-                );
+                about.Last.LogInformation("Reschedules {@workflow.name}. Next execution at '{workflow.trigger.next}'.", workflowSpec.Path, next);
             }
             else
             {
@@ -186,22 +179,18 @@ public class ScheduleWorkflow
         }
         else
         {
-            var nextNew = await scheduler.ScheduleJob<TJob>(trigger, job => job.DisallowConcurrentExecution());
-            about.Last.LogInformation(
-                "Schedules workflows '{@workflow.name}'. Next execution at '{workflow.trigger.next}'.",
-                workflowSpec.Path,
-                nextNew
-            );
+            var next = await scheduler.ScheduleJob<TJob>(trigger, job => job.DisallowConcurrentExecution());
+            about.Last.LogInformation("Schedules workflows '{@workflow.name}'. Next execution at '{workflow.trigger.next}'.", workflowSpec.Path, next);
         }
     }
 
     public async Task Deletion(ITrigger trigger)
     {
-        using var scope = logger.Baseline.BeginScopeAbout<ScheduleWorkflow>
+        using var scope = logger.Internal.BeginScopeAbout<ScheduleWorkflow>
         ([
             ("workflow.trigger.key", trigger.Key)
         ]);
-        scope.Zero.Internal.LogDebug(null);
+        scope.Zero.LogDebug(null);
 
         try
         {
@@ -212,7 +201,7 @@ public class ScheduleWorkflow
             }
             else
             {
-                scope.Last.LogInformation("Does not delete trigger '{workflow.trigger.key}' because it does not exist.");
+                scope.Last.LogInformation("Trigger '{workflow.trigger.key}' does not exist.");
             }
         }
         catch (Exception e)

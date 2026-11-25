@@ -26,12 +26,41 @@ public class ExecuteWorkflow
 {
     public async Task Invoke(WorkflowSpec workflow, WorkflowMode mode, IReadOnlyList<string> customSteps, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(workflow);
+
         using var about = logger.Baseline.BeginScopeAbout<ExecuteWorkflow>
         ([
-            ("@workflow.name", workflow.Path),
+            ("workflow.name", workflow.Path.Name),
             ("workflow.mode", mode)
         ]);
         about.Zero.LogDebug(null);
+
+        using var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        switch (mode)
+        {
+            case WorkflowMode.Job:
+                if (!workflow.Enabled)
+                {
+                    about.Tick.LogError("Workflow '{@workflow.name}' is disabled.", workflow.Path);
+                    await cancellationTokenSource.CancelAsync();
+                }
+
+                if (workflow.Steps.Count == 0)
+                {
+                    about.Tick.LogError("Workflow '{@workflow.name}' has no steps.", workflow.Path);
+                    await cancellationTokenSource.CancelAsync();
+                }
+
+                break;
+            case WorkflowMode.Cli:
+            case WorkflowMode.Api:
+            default:
+                // core: There is nothing to handle in this case.
+                break;
+        }
+
+        cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
         var variables = ImmutableList<IVariableGroup>.Empty.AddRange
         ([
@@ -39,8 +68,12 @@ public class ExecuteWorkflow
             {
                 Home = schedulerOptions.Value.Home,
                 Name = schedulerOptions.Value.Name,
-            },
-            new WorkflowVariableGroup(workflow.Variables.ToImmutableDictionary(x => x.Key, x => RenderTemplate.String(x.Value, [])))
+            }
+        ]);
+
+        variables = variables.AddRange
+        ([
+            new WorkflowVariableGroup(workflow.Variables.ToImmutableDictionary(x => x.Key, x => RenderTemplate.String(x.Value, variables)))
             {
                 Path = workflow.Path,
                 Mode = mode,
@@ -59,9 +92,10 @@ public class ExecuteWorkflow
 
                 foreach (var name in customSteps)
                 {
+                    cancellationTokenSource.Token.ThrowIfCancellationRequested();
                     if (workflow.Steps.SingleOrDefault(s => name.Equals(s.Name, StringComparison.InvariantCultureIgnoreCase)) is { } step)
                     {
-                        await executeStep.AsProcess(step, variables, cancellationToken);
+                        await executeStep.AsProcess(step, variables, cancellationTokenSource.Token);
                     }
                     else
                     {
@@ -75,6 +109,7 @@ public class ExecuteWorkflow
 
                 foreach (var step in workflow.Steps)
                 {
+                    cancellationTokenSource.Token.ThrowIfCancellationRequested();
                     if (step.Enabled)
                     {
                         await executeStep.AsProcess(step, variables, cancellationToken);
@@ -85,8 +120,6 @@ public class ExecuteWorkflow
                     }
                 }
             }
-
-            cancellationToken.ThrowIfCancellationRequested();
 
             about.Last.LogInformation("Workflow '{@workflow.name}' completes in {activity.duration_ms:N0} ms.");
         }

@@ -107,9 +107,9 @@ public static class LogEventForkExtensions
         });
     }
 
-    public static IEnumerable<LogEvent> WhereProperty<T>(this IEnumerable<LogEvent> events, string name, T value)
+    public static IEnumerable<LogEvent> WhereProperty<T>(this IEnumerable<LogEvent> events, string name, Func<T, bool> predicate)
     {
-        return events.Where(e => e.TryGetScalar<T>(name, out var scalar) && EqualityComparer<T>.Default.Equals(scalar, value));
+        return events.Where(e => e.TryGetScalar<T>(name, out var scalar) && predicate(scalar));
     }
 
     public static T? GetScalarOrDefault<T>(this LogEvent logEvent, string name)

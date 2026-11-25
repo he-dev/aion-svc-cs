@@ -48,13 +48,14 @@ public class ExecuteStep
                 cancellationToken
             );
 
+            using var exitCodeScope = logger.BeginScopeWith(("workflow.step.exit_code", exitCode));
             switch (exitCode)
             {
                 case null:
-                    about.Last.LogError("Step {workflow.step.index} did not complete.");
+                    about.Last.LogError("Step {workflow.step.index} does not complete.");
                     break;
                 case 0:
-                    about.Last.LogInformation("Step {workflow.step.index} completed in {activity.duration_ms:N0} ms.");
+                    about.Last.LogInformation("Step {workflow.step.index} completes in {activity.duration_ms:N0} ms with exit code {workflow.step.exit_code}.");
                     break;
                 default:
                 {
