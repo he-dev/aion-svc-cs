@@ -23,9 +23,15 @@ public class ExecuteStep
         using var about = logger.Baseline.BeginScopeAbout<ExecuteStep>
         ([
             ("workflow.step.index", step.Index),
-            ("workflow.step.name", step.Name)
+            ("workflow.step.name", step.Name),
         ]);
-        about.Zero.LogDebug(null);
+        about.Zero.LogInformation("Step {workflow.step.index} is enabled: {workflow.step.enabled}.", step.Index, step.Enabled);
+
+        if (!step.Enabled)
+        {
+            about.Last.LogInformation("Step {workflow.step.index} is disabled.");
+            return false;
+        }
 
         variables =
         [
@@ -69,6 +75,7 @@ public class ExecuteStep
         }
         catch (OperationCanceledException)
         {
+            about.Last.LogInformation("Step {workflow.step.index} cancelled after {activity.duration_ms:N0} ms.");
             // core: Let the workflow handle the cancellation.
             throw;
         }

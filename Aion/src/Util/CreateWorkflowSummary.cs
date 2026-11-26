@@ -43,7 +43,7 @@ public class CreateWorkflowSummary
 
                 summaries = summaries.Add(new
                 {
-                    path = workflowSpec.Path.Relative,
+                    name = workflowSpec.Name,
                     isOn = workflowSpec.Enabled,
                     cron = workflowSpec.Cron,
                     next = next,

@@ -12,14 +12,19 @@ public abstract class PropertyScriptObject() : ScriptObject(StringComparer.Ordin
 {
     public override bool TryGetValue(TemplateContext? context, SourceSpan span, string member, [MaybeNullWhen(true)] out object value)
     {
-        if (!this.TryGetProperty(member, out var property))
+        if (this.TryGetProperty(member, out var property))
         {
-            value = null!;
-            return false;
+            value = property.GetValue(this);
+            return true;
         }
 
-        value = property.GetValue(this);
-        return true;
+        if (base.TryGetValue(context, span, member, out value))
+        {
+            return true;
+        }
+
+        value = null!;
+        return false;
     }
 
     public override bool CanWrite(string member) => false;

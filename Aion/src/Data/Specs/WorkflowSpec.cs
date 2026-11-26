@@ -11,7 +11,9 @@ public delegate Task<T> Render<T>(ImmutableList<IVariableGroup> variables);
 
 public record WorkflowSpec
 {
-    public required WorkflowPath Path { get; init; }
+    //public required WorkflowPath Path { get; init; }
+
+    public required string Name { get; init; }
 
     public required bool Enabled { get; init; }
 

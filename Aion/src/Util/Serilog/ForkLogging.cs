@@ -39,10 +39,7 @@ public sealed class ForkLogging : ILogEventSink, IObservable<LogEvent>
             throw new InvalidOperationException("Fork is already subscribed.");
         }
 
-        var registration = new Subscription(fork, registration =>
-        {
-            Subscriptions = Subscriptions.Remove(registration, ReferenceEqualityComparer.Instance);
-        });
+        var registration = new Subscription(fork, registration => { Subscriptions = Subscriptions.Remove(registration, ReferenceEqualityComparer.Instance); });
 
         // core: Process subscription by inner first.
         Subscriptions = subscriptions.Insert(0, registration);
@@ -92,24 +89,47 @@ public sealed class LoggerFork(ILogger logger) : IObserver<LogEvent>
 
 public static class LogEventForkExtensions
 {
-    public static IEnumerable<LogEvent> AtLeast(this IEnumerable<LogEvent> events, Microsoft.Extensions.Logging.LogLevel minLogLevel)
+    extension(IEnumerable<LogEvent> events)
     {
-        return events.Where(e => e.Level >= minLogLevel switch
+        public IEnumerable<LogEvent> AtLeast(Microsoft.Extensions.Logging.LogLevel minLogLevel)
         {
-            Microsoft.Extensions.Logging.LogLevel.Trace => LogEventLevel.Verbose,
-            Microsoft.Extensions.Logging.LogLevel.Debug => LogEventLevel.Debug,
-            Microsoft.Extensions.Logging.LogLevel.Information => LogEventLevel.Information,
-            Microsoft.Extensions.Logging.LogLevel.Warning => LogEventLevel.Warning,
-            Microsoft.Extensions.Logging.LogLevel.Error => LogEventLevel.Error,
-            Microsoft.Extensions.Logging.LogLevel.Critical => LogEventLevel.Fatal,
-            Microsoft.Extensions.Logging.LogLevel.None => (LogEventLevel)int.MaxValue,
-            _ => throw new ArgumentOutOfRangeException(nameof(minLogLevel), minLogLevel, null)
-        });
-    }
+            return events.Where(e => e.Level >= minLogLevel switch
+            {
+                Microsoft.Extensions.Logging.LogLevel.Trace => LogEventLevel.Verbose,
+                Microsoft.Extensions.Logging.LogLevel.Debug => LogEventLevel.Debug,
+                Microsoft.Extensions.Logging.LogLevel.Information => LogEventLevel.Information,
+                Microsoft.Extensions.Logging.LogLevel.Warning => LogEventLevel.Warning,
+                Microsoft.Extensions.Logging.LogLevel.Error => LogEventLevel.Error,
+                Microsoft.Extensions.Logging.LogLevel.Critical => LogEventLevel.Fatal,
+                Microsoft.Extensions.Logging.LogLevel.None => (LogEventLevel)int.MaxValue,
+                _ => throw new ArgumentOutOfRangeException(nameof(minLogLevel), minLogLevel, null)
+            });
+        }
 
-    public static IEnumerable<LogEvent> WhereProperty<T>(this IEnumerable<LogEvent> events, string name, Func<T, bool> predicate)
-    {
-        return events.Where(e => e.TryGetScalar<T>(name, out var scalar) && predicate(scalar));
+        public IEnumerable<LogEvent> WhereScalar<T>(string name, Func<T, bool> predicate)
+        {
+            return events.Where(e => e.TryGetScalar<T>(name, out var scalar) && predicate(scalar));
+        }
+
+        public IEnumerable<T> SelectScalar<T>(string name, T defaultValue)
+        {
+            return events.Select(e => e.TryGetScalar<T>(name, out var scalar) ? scalar : defaultValue);
+        }
+
+        public IEnumerable<string> Format(ITextFormatter formatter)
+        {
+            return events.Select(e =>
+            {
+                using var writer = new StringWriter();
+                formatter.Format(e, writer);
+                return writer.ToString();
+            });
+        }
+
+        public IEnumerable<string> Format(string template, IFormatProvider? formatProvider = null)
+        {
+            return events.Format(new MessageTemplateTextFormatter(template, formatProvider));
+        }
     }
 
     public static T? GetScalarOrDefault<T>(this LogEvent logEvent, string name)
@@ -120,20 +140,5 @@ public static class LogEventForkExtensions
         }
 
         return default;
-    }
-
-    public static IEnumerable<string> Format(this IEnumerable<LogEvent> events, ITextFormatter formatter)
-    {
-        return events.Select(e =>
-        {
-            using var writer = new StringWriter();
-            formatter.Format(e, writer);
-            return writer.ToString();
-        });
-    }
-
-    public static IEnumerable<string> Format(this IEnumerable<LogEvent> events, string template, IFormatProvider? formatProvider = null)
-    {
-        return events.Format(new MessageTemplateTextFormatter(template, formatProvider));
     }
 }

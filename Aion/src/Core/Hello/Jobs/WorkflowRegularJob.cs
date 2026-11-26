@@ -24,7 +24,7 @@ public class WorkflowRegularJob
         using var about = logger.Internal.BeginScopeAbout<WorkflowRegularJob>
         ([
             ("job.key", context.JobDetail.Key),
-            ("workflow.name", input.WorkflowPath.Name),
+            ("workflow.name", input.WorkflowName),
             ("workflow.mode", input.WorkflowMode)
         ]);
 
@@ -32,7 +32,7 @@ public class WorkflowRegularJob
 
         try
         {
-            if (await loadWorkflow.Spec(input.WorkflowPath) is { } workflow)
+            if (await loadWorkflow.Spec(input.WorkflowName) is { } workflow)
             {
                 await executeWorkflow.Invoke(workflow, input.WorkflowMode, ImmutableList<string>.Empty, cancellationToken);
                 about.Last.LogInformation("Job '{job.key}' completes in {activity.duration_ms:N0} ms.");

@@ -25,28 +25,46 @@ public class LoadWorkflow
 (
     ILogger<LoadWorkflow> logger,
     IOptions<SchedulerOptions> schedulerOptions,
+    FindWorkflows findWorkflows,
     ValidateWorkflowConfig validateWorkflowConfig,
     ValidateWorkflowConfigDefault validateWorkflowConfigDefault
 )
 {
     private static readonly IImmutableList<string> Extensions = [".json", ".yaml", ".yml"];
 
+    public async Task<WorkflowSpec?> Spec(string name)
+    {
+        return findWorkflows.Where(name) switch
+        {
+            { Count: 0 } => null,
+            { Count: 1 } matches => await Spec(matches.Single()),
+            _ => null
+        };
+    }
+
     public async Task<WorkflowSpec?> Spec(WorkflowPath workflowPath)
     {
-        using var about = logger.Internal.BeginScopeAbout<LoadWorkflow>([("@workflow.name", workflowPath)]);
-        about.Zero.LogDebug("Loading workflow '{@workflow.name}'.", workflowPath);
-
         if (await Config(workflowPath) is not { } config)
         {
-            about.Last.LogError("Cannot load workflow '{@workflow.name}' because there is no spec.");
+            logger.Internal.LogError("Cannot load workflow '{workflow.name}' because there is no spec.", workflowPath.Name);
             return null;
         }
+
+        return Spec(workflowPath.Name, config);
+    }
+
+    // util: This method is meant to be used in tests.
+    public WorkflowSpec? Spec(string name, WorkflowConfig config)
+    {
+        using var about = logger.Internal.BeginScopeAbout<LoadWorkflow>([("workflow.name", name)]);
+        about.Zero.LogDebug("Loading workflow '{workflow.name}'.", name);
 
         try
         {
             return new WorkflowSpec
             {
-                Path = workflowPath,
+                //Path = workflowPath,
+                Name = name,
                 Cron = config.Cron,
                 Enabled = config.Enabled,
                 Variables = config.Variables.ToImmutableDictionary(x => x.Key, x => TemplateString.From(x.Value)),
@@ -74,12 +92,12 @@ public class LoadWorkflow
         }
         catch (Exception ex)
         {
-            about.Last.LogError(ex, "Loading workflow '{@workflow.name}' fails.", workflowPath);
+            about.Last.LogError(ex, "Loading workflow '{workflow.name}' fails.", name);
             return null;
         }
         finally
         {
-            about.Last.WhenFirstOnly.LogInformation("Workflow '{@workflow.name}' loads.", workflowPath);
+            about.Last.WhenFirstOnly.LogInformation("Workflow '{workflow.name}' loads.", name);
         }
     }
 

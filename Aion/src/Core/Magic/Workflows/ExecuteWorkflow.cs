@@ -30,7 +30,7 @@ public class ExecuteWorkflow
 
         using var about = logger.Baseline.BeginScopeAbout<ExecuteWorkflow>
         ([
-            ("workflow.name", workflow.Path.Name),
+            ("workflow.name", workflow.Name),
             ("workflow.mode", mode)
         ]);
         about.Zero.LogDebug(null);
@@ -42,13 +42,13 @@ public class ExecuteWorkflow
             case WorkflowMode.Job:
                 if (!workflow.Enabled)
                 {
-                    about.Tick.LogError("Workflow '{@workflow.name}' is disabled.", workflow.Path);
+                    about.Tick.LogError("Workflow '{workflow.name}' is disabled.", workflow.Name);
                     await cancellationTokenSource.CancelAsync();
                 }
 
                 if (workflow.Steps.Count == 0)
                 {
-                    about.Tick.LogError("Workflow '{@workflow.name}' has no steps.", workflow.Path);
+                    about.Tick.LogError("Workflow '{workflow.name}' has no steps.", workflow.Name);
                     await cancellationTokenSource.CancelAsync();
                 }
 
@@ -75,7 +75,7 @@ public class ExecuteWorkflow
         ([
             new WorkflowVariableGroup(workflow.Variables.ToImmutableDictionary(x => x.Key, x => RenderTemplate.String(x.Value, variables)))
             {
-                Path = workflow.Path,
+                Name = workflow.Name,
                 Mode = mode,
             }
         ]);
@@ -95,7 +95,7 @@ public class ExecuteWorkflow
                     cancellationTokenSource.Token.ThrowIfCancellationRequested();
                     if (workflow.Steps.SingleOrDefault(s => name.Equals(s.Name, StringComparison.InvariantCultureIgnoreCase)) is { } step)
                     {
-                        await executeStep.AsProcess(step, variables, cancellationTokenSource.Token);
+                        await executeStep.AsProcess(step with { Enabled = true }, variables, cancellationTokenSource.Token);
                     }
                     else
                     {
@@ -110,14 +110,7 @@ public class ExecuteWorkflow
                 foreach (var step in workflow.Steps)
                 {
                     cancellationTokenSource.Token.ThrowIfCancellationRequested();
-                    if (step.Enabled)
-                    {
-                        await executeStep.AsProcess(step, variables, cancellationToken);
-                    }
-                    else
-                    {
-                        about.Tick.LogInformation("Skipping step {workflow.step.index} because it is disabled.", step.Index);
-                    }
+                    await executeStep.AsProcess(step, variables, cancellationToken);
                 }
             }
 

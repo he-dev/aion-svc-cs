@@ -25,7 +25,7 @@ public class WorkflowVariableGroup : PropertyScriptObject, IVariableGroup
         }
     }
 
-    public required string Path { get; init; }
+    public required string Name { get; init; }
 }
 
 public class StepVariableGroup : PropertyScriptObject, IVariableGroup
